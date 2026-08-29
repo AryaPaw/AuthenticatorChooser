@@ -44,6 +44,23 @@ Closing the window does **not** quit; use **Exit**. A second launch opens the sa
 
 If it still highlights Security key but does not click Next, press <kbd>Enter</kbd>.
 
+## Build from source
+
+Install the [.NET SDK](https://dotnet.microsoft.com/en-us/download) 8 or later (or Visual Studio 2022/2026). Clone **this** repository, not an old upstream tag, if you want the tray UI.
+
+```ps1
+git clone https://github.com/AryaPaw/AuthenticatorChooser.git
+cd AuthenticatorChooser
+dotnet publish AuthenticatorChooser -c Release --runtime win-x64 --no-self-contained -p:PublishSingleFile=true
+dotnet test /p:CollectCoverage=true
+```
+
+Output: `AuthenticatorChooser\bin\Release\net8.0-windows\win-x64\publish\AuthenticatorChooser.exe`. Installer script: `installer\AuthenticatorChooser.iss`.
+
+CI (`.github/workflows/dotnet.yml`) publishes the same non-self-contained build. A GitHub Release with Setup and portable exes is created when you push a `v*` tag.
+
+Unit tests cover settings, skip policy, title/caption mapping, autostart helpers, and the status presenter. UI Automation against live Windows Security dialogs is not part of CI.
+
 ## Related
 
 ### Creating new passkeys
