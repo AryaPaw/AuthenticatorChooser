@@ -124,10 +124,27 @@ jobs:
       with:
         files: |
           dist/AuthenticatorChooser-Setup-win-x64.exe
-          dist/AuthenticatorChooser-Setup-win-x64.exe.sha256
           dist/AuthenticatorChooser-Setup-win-arm64.exe
-          dist/AuthenticatorChooser-Setup-win-arm64.exe.sha256
           dist/AuthenticatorChooser-win-x64.exe
           dist/AuthenticatorChooser-win-arm64.exe
+          dist/AuthenticatorChooser-Setup-win-x64.exe.sha256
+          dist/AuthenticatorChooser-Setup-win-arm64.exe.sha256
+        preserve_order: true
         generate_release_notes: true
         fail_on_unmatched_files: true
+        body: |
+          If you are not sure, download **AuthenticatorChooser-Setup-win-x64.exe** and run it.
+
+          | What you want | Download |
+          | --- | --- |
+          | **Install** on a typical 64-bit PC (Intel/AMD) | [AuthenticatorChooser-Setup-win-x64.exe](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/AuthenticatorChooser-Setup-win-x64.exe) |
+          | **Install** on ARM64 Windows (Snapdragon, some Surface) | [AuthenticatorChooser-Setup-win-arm64.exe](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/AuthenticatorChooser-Setup-win-arm64.exe) |
+          | Portable, no installer (64-bit) | [AuthenticatorChooser-win-x64.exe](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/AuthenticatorChooser-win-x64.exe) |
+          | Portable, no installer (ARM64) | [AuthenticatorChooser-win-arm64.exe](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/AuthenticatorChooser-win-arm64.exe) |
+
+          | Not an installer | File |
+          | --- | --- |
+          | SHA-256 of the 64-bit Setup (verify / auto-update) | [AuthenticatorChooser-Setup-win-x64.exe.sha256](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/AuthenticatorChooser-Setup-win-x64.exe.sha256) |
+          | SHA-256 of the ARM64 Setup | [AuthenticatorChooser-Setup-win-arm64.exe.sha256](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/AuthenticatorChooser-Setup-win-arm64.exe.sha256) |
+
+          Needs Windows 11 and the [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/8.0/runtime).
