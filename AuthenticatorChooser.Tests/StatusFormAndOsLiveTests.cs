@@ -47,6 +47,11 @@ public sealed class StatusFormAndOsLiveTests {
         Exception? failure = null;
         Thread thread = new(() => {
             try {
+                try {
+                    Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
+                    Application.EnableVisualStyles();
+                } catch (InvalidOperationException) {
+                }
                 AppState state = new();
                 IAutostartService autostart = Substitute.For<IAutostartService>();
                 autostart.IsRegistered().Returns(true);
@@ -55,10 +60,11 @@ public sealed class StatusFormAndOsLiveTests {
                 string settings = Path.Combine(root, "settings.json");
                 using TrayIcon tray = new(state);
                 using StatusForm form = new(state, autostart, Path.Combine(root, "app.exe"), settings, root, tray, () => { });
+                form.TopMost = true;
                 form.Reveal();
                 form.Refresh();
                 Application.DoEvents();
-                Thread.Sleep(250);
+                Thread.Sleep(400);
                 string dest = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".github", "images", "status-window.png"));
                 Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
                 using Bitmap bitmap = new(form.Width, form.Height);
