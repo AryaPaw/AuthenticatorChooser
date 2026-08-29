@@ -76,34 +76,26 @@ public static class SilentUpdateCoordinator {
 
         string rid = SilentUpdatePolicy.RidFor(context.ProcessArchitecture)!;
         string fileName = SilentUpdatePolicy.SetupFileName(rid);
-        string sidecarName = SetupIntegrity.SidecarFileName(fileName);
         GitHubReleaseAsset? asset = latest.Assets.FirstOrDefault(item =>
             string.Equals(item.Name, fileName, StringComparison.OrdinalIgnoreCase));
-        GitHubReleaseAsset? sidecar = latest.Assets.FirstOrDefault(item =>
-            string.Equals(item.Name, sidecarName, StringComparison.OrdinalIgnoreCase));
         if (asset is null
-            || sidecar is null
+            || !SetupIntegrity.TryParseGitHubDigest(asset.Digest, out string expected)
             || !SafeWeb.TryCreateAllowedUrl(asset.BrowserDownloadUrl, out Uri? downloadUrl)
-            || downloadUrl is null
-            || !SafeWeb.TryCreateAllowedUrl(sidecar.BrowserDownloadUrl, out Uri? sidecarUrl)
-            || sidecarUrl is null) {
+            || downloadUrl is null) {
             return SilentUpdateOutcome.Failed;
         }
 
         string destination = Path.Combine(context.DownloadDirectory, fileName);
-        string sidecarPath = Path.Combine(context.DownloadDirectory, sidecarName);
         if (!SilentUpdatePolicy.IsSafeSetupPath(destination, context.DownloadDirectory)) {
             return SilentUpdateOutcome.Failed;
         }
 
         bool downloaded = await context.Feed.Download(downloadUrl, destination, context.CancellationToken);
-        bool sidecarOk = await context.Feed.Download(sidecarUrl, sidecarPath, context.CancellationToken);
-        if (!downloaded || !sidecarOk) {
+        if (!downloaded) {
             return SilentUpdateOutcome.Failed;
         }
 
-        if (!SetupIntegrity.TryParseSidecar(File.ReadAllText(sidecarPath), fileName, out string expected)
-            || !SetupIntegrity.HashesMatch(expected, SetupIntegrity.HashFile(destination))) {
+        if (!SetupIntegrity.HashesMatch(expected, SetupIntegrity.HashFile(destination))) {
             return SilentUpdateOutcome.Failed;
         }
 

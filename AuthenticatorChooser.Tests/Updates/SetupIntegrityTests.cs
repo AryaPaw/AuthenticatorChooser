@@ -6,20 +6,21 @@ namespace AuthenticatorChooser.Tests;
 public sealed class SetupIntegrityTests {
 
     [Fact]
-    public void TryParseSidecar_AcceptsGnuAndBareHex() {
-        const string name = "AuthenticatorChooser-Setup-win-x64.exe";
+    public void TryParseGitHubDigest_AcceptsSha256Prefix() {
         byte[] payload = [1];
         string hex = Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant();
-        SetupIntegrity.TryParseSidecar(hex, name, out string bare).Should().BeTrue();
-        bare.Should().Be(hex);
-        SetupIntegrity.TryParseSidecar(hex + "  " + name, name, out string gnu).Should().BeTrue();
-        gnu.Should().Be(hex);
+        SetupIntegrity.TryParseGitHubDigest("sha256:" + hex, out string parsed).Should().BeTrue();
+        parsed.Should().Be(hex);
+        SetupIntegrity.TryParseGitHubDigest("SHA256:" + hex.ToUpperInvariant(), out string mixed).Should().BeTrue();
+        mixed.Should().Be(hex);
     }
 
     [Fact]
-    public void TryParseSidecar_RejectsWrongNameAndShortHex() {
-        SetupIntegrity.TryParseSidecar("abcd  other.exe", "AuthenticatorChooser-Setup-win-x64.exe", out _).Should().BeFalse();
-        SetupIntegrity.TryParseSidecar("not-hex", "AuthenticatorChooser-Setup-win-x64.exe", out _).Should().BeFalse();
+    public void TryParseGitHubDigest_RejectsMissingPrefixAndShortHex() {
+        SetupIntegrity.TryParseGitHubDigest(new string('a', 64), out _).Should().BeFalse();
+        SetupIntegrity.TryParseGitHubDigest("sha256:abcd", out _).Should().BeFalse();
+        SetupIntegrity.TryParseGitHubDigest(null, out _).Should().BeFalse();
+        SetupIntegrity.TryParseGitHubDigest("md5:" + new string('a', 32), out _).Should().BeFalse();
     }
 
     [Fact]

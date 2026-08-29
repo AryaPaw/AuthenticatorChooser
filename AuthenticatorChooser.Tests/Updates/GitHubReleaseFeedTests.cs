@@ -11,7 +11,7 @@ public sealed class GitHubReleaseFeedTests {
           "tag_name": "v0.8.0",
           "prerelease": false,
           "assets": [
-            { "name": "AuthenticatorChooser-Setup-win-x64.exe", "browser_download_url": "https://github.com/AryaPaw/AuthenticatorChooser/releases/download/v0.8.0/AuthenticatorChooser-Setup-win-x64.exe" },
+            { "name": "AuthenticatorChooser-Setup-win-x64.exe", "browser_download_url": "https://github.com/AryaPaw/AuthenticatorChooser/releases/download/v0.8.0/AuthenticatorChooser-Setup-win-x64.exe", "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
             { "name": "AuthenticatorChooser.exe", "browser_download_url": "https://github.com/AryaPaw/AuthenticatorChooser/releases/download/v0.8.0/AuthenticatorChooser.exe" }
           ]
         }
@@ -22,7 +22,9 @@ public sealed class GitHubReleaseFeedTests {
         GitHubReleaseFeed.TryParse(LatestJson, out GitHubReleaseSnapshot? snapshot).Should().BeTrue();
         snapshot!.TagName.Should().Be("v0.8.0");
         snapshot.Prerelease.Should().BeFalse();
-        snapshot.Assets.Should().Contain(asset => asset.Name == "AuthenticatorChooser-Setup-win-x64.exe");
+        snapshot.Assets.Should().Contain(asset =>
+            asset.Name == "AuthenticatorChooser-Setup-win-x64.exe"
+            && asset.Digest == "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
     }
 
     [Fact]

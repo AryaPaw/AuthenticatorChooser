@@ -72,21 +72,11 @@ jobs:
           "/DInstallArch=$arch"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-    - name: Write Setup SHA256 sidecar
-      shell: pwsh
-      run: |
-        $setup = "artifacts/AuthenticatorChooser-Setup-${{ matrix.targetPlatform }}.exe"
-        if (-not (Test-Path $setup)) { throw "Missing $setup" }
-        $name = [IO.Path]::GetFileName((Resolve-Path $setup))
-        $hash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant()
-        [IO.File]::WriteAllText("$setup.sha256", "$hash  $name`n")
-
     - name: Stage artifacts
       run: |
         New-Item -ItemType Directory -Force staging | Out-Null
         Copy-Item "${{ env.ProjectName }}\bin\Release\net8.0-windows\${{ matrix.targetPlatform }}\publish\AuthenticatorChooser.exe" "staging\AuthenticatorChooser.exe"
         Copy-Item "artifacts\AuthenticatorChooser-Setup-${{ matrix.targetPlatform }}.exe" "staging\AuthenticatorChooser-Setup-${{ matrix.targetPlatform }}.exe"
-        Copy-Item "artifacts\AuthenticatorChooser-Setup-${{ matrix.targetPlatform }}.exe.sha256" "staging\AuthenticatorChooser-Setup-${{ matrix.targetPlatform }}.exe.sha256"
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v7
@@ -116,8 +106,6 @@ jobs:
         mv dist/AuthenticatorChooser-win-arm64/AuthenticatorChooser.exe dist/AuthenticatorChooser-win-arm64.exe
         mv dist/AuthenticatorChooser-win-x64/AuthenticatorChooser-Setup-win-x64.exe dist/AuthenticatorChooser-Setup-win-x64.exe
         mv dist/AuthenticatorChooser-win-arm64/AuthenticatorChooser-Setup-win-arm64.exe dist/AuthenticatorChooser-Setup-win-arm64.exe
-        mv dist/AuthenticatorChooser-win-x64/AuthenticatorChooser-Setup-win-x64.exe.sha256 dist/AuthenticatorChooser-Setup-win-x64.exe.sha256
-        mv dist/AuthenticatorChooser-win-arm64/AuthenticatorChooser-Setup-win-arm64.exe.sha256 dist/AuthenticatorChooser-Setup-win-arm64.exe.sha256
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
@@ -127,8 +115,6 @@ jobs:
           dist/AuthenticatorChooser-Setup-win-arm64.exe
           dist/AuthenticatorChooser-win-x64.exe
           dist/AuthenticatorChooser-win-arm64.exe
-          dist/AuthenticatorChooser-Setup-win-x64.exe.sha256
-          dist/AuthenticatorChooser-Setup-win-arm64.exe.sha256
         preserve_order: true
         generate_release_notes: true
         fail_on_unmatched_files: true
@@ -141,10 +127,5 @@ jobs:
           | **Install** on ARM64 Windows (Snapdragon, some Surface) | [AuthenticatorChooser-Setup-win-arm64.exe](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/AuthenticatorChooser-Setup-win-arm64.exe) |
           | Portable, no installer (64-bit) | [AuthenticatorChooser-win-x64.exe](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/AuthenticatorChooser-win-x64.exe) |
           | Portable, no installer (ARM64) | [AuthenticatorChooser-win-arm64.exe](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/AuthenticatorChooser-win-arm64.exe) |
-
-          | Not an installer | File |
-          | --- | --- |
-          | SHA-256 of the 64-bit Setup (verify / auto-update) | [AuthenticatorChooser-Setup-win-x64.exe.sha256](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/AuthenticatorChooser-Setup-win-x64.exe.sha256) |
-          | SHA-256 of the ARM64 Setup | [AuthenticatorChooser-Setup-win-arm64.exe.sha256](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/AuthenticatorChooser-Setup-win-arm64.exe.sha256) |
 
           Needs Windows 11 and the [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/8.0/runtime).

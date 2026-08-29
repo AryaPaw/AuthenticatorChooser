@@ -77,10 +77,8 @@ public sealed class SilentUpdateCoordinatorTests: IDisposable {
         FakeFeed feed = new() {
             Latest = new GitHubReleaseSnapshot("v0.8.0", false, ReleaseAssets("0.8.0")),
             DownloadOk = true,
-            AfterDownload = url => {
-                if (url.AbsolutePath.EndsWith(".sha256", StringComparison.OrdinalIgnoreCase)) {
-                    held = FidoActivity.Begin();
-                }
+            AfterDownload = _ => {
+                held = FidoActivity.Begin();
             }
         };
         FakeInstaller installer = new();
@@ -181,9 +179,8 @@ public sealed class SilentUpdateCoordinatorTests: IDisposable {
     public async Task RunOnce_FailsWhenShaDoesNotMatch() {
         DateTime now = new(2026, 8, 29, 18, 0, 0, DateTimeKind.Utc);
         FakeFeed feed = new() {
-            Latest = new GitHubReleaseSnapshot("v0.8.0", false, ReleaseAssets("0.8.0")),
-            DownloadOk = true,
-            SidecarText = new string('0', 64)
+            Latest = new GitHubReleaseSnapshot("v0.8.0", false, ReleaseAssets("0.8.0", "sha256:" + new string('0', 64))),
+            DownloadOk = true
         };
         FakeInstaller installer = new();
         SilentUpdateOutcome outcome = await SilentUpdateCoordinator.RunOnce(Context("AuthenticatorChooser", feed, installer, now, "0.7.0"));
@@ -192,12 +189,12 @@ public sealed class SilentUpdateCoordinatorTests: IDisposable {
     }
 
     [Fact]
-    public async Task RunOnce_FailsWhenSidecarAssetMissing() {
+    public async Task RunOnce_FailsWhenDigestMissing() {
         DateTime now = new(2026, 8, 29, 18, 0, 0, DateTimeKind.Utc);
         string setup = "https://github.com/AryaPaw/AuthenticatorChooser/releases/download/v0.8.0/AuthenticatorChooser-Setup-win-x64.exe";
         FakeFeed feed = new() {
             Latest = new GitHubReleaseSnapshot("v0.8.0", false, [
-                new GitHubReleaseAsset("AuthenticatorChooser-Setup-win-x64.exe", setup)
+                new GitHubReleaseAsset("AuthenticatorChooser-Setup-win-x64.exe", setup, null)
             ]),
             DownloadOk = true
         };
@@ -212,8 +209,7 @@ public sealed class SilentUpdateCoordinatorTests: IDisposable {
         DateTime now = new(2026, 8, 29, 18, 0, 0, DateTimeKind.Utc);
         FakeFeed feed = new() {
             Latest = new GitHubReleaseSnapshot("v0.8.0", false, [
-                new GitHubReleaseAsset("AuthenticatorChooser-Setup-win-x64.exe", "https://evil.example/setup.exe"),
-                new GitHubReleaseAsset("AuthenticatorChooser-Setup-win-x64.exe.sha256", "https://evil.example/setup.exe.sha256")
+                new GitHubReleaseAsset("AuthenticatorChooser-Setup-win-x64.exe", "https://evil.example/setup.exe", MatchingDigest())
             ]),
             DownloadOk = true
         };
@@ -264,11 +260,13 @@ public sealed class SilentUpdateCoordinatorTests: IDisposable {
             exit ?? (() => { }),
             CancellationToken.None);
 
-    private static GitHubReleaseAsset[] ReleaseAssets(string version) {
+    private static string MatchingDigest() =>
+        "sha256:" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData([1])).ToLowerInvariant();
+
+    private static GitHubReleaseAsset[] ReleaseAssets(string version, string? digest = null) {
         string setup = $"https://github.com/AryaPaw/AuthenticatorChooser/releases/download/v{version}/AuthenticatorChooser-Setup-win-x64.exe";
         return [
-            new GitHubReleaseAsset("AuthenticatorChooser-Setup-win-x64.exe", setup),
-            new GitHubReleaseAsset("AuthenticatorChooser-Setup-win-x64.exe.sha256", setup + ".sha256")
+            new GitHubReleaseAsset("AuthenticatorChooser-Setup-win-x64.exe", setup, digest ?? MatchingDigest())
         ];
     }
 
@@ -300,8 +298,6 @@ public sealed class SilentUpdateCoordinatorTests: IDisposable {
 
         public bool NotFound { get; set; }
 
-        public string? SidecarText { get; set; }
-
         public Action<Uri>? AfterDownload { get; set; }
 
         public Task<ReleaseQuery> QueryLatest(CancellationToken cancellationToken) {
@@ -321,14 +317,7 @@ public sealed class SilentUpdateCoordinatorTests: IDisposable {
             }
 
             Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
-            byte[] payload = [1];
-            if (url.AbsolutePath.EndsWith(".sha256", StringComparison.OrdinalIgnoreCase)) {
-                string hex = SidecarText ?? Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(payload)).ToLowerInvariant();
-                File.WriteAllText(destinationPath, hex + "  AuthenticatorChooser-Setup-win-x64.exe");
-            } else {
-                File.WriteAllBytes(destinationPath, payload);
-            }
-
+            File.WriteAllBytes(destinationPath, [1]);
             return Task.FromResult(true);
         }
 

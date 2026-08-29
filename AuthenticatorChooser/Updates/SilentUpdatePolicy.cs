@@ -14,8 +14,6 @@ internal static class SilentUpdatePolicy {
 
     public const long MaxSetupBytes = 80L * 1024 * 1024;
 
-    public const long MaxSidecarBytes = 4096;
-
     public static bool TryParseTag(string? tag, out Version? version) {
         version = null;
         if (string.IsNullOrWhiteSpace(tag)) {

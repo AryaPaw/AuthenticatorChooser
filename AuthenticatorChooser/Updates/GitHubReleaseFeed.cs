@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace AuthenticatorChooser.Updates;
 
-public sealed record GitHubReleaseAsset(string Name, string BrowserDownloadUrl);
+public sealed record GitHubReleaseAsset(string Name, string BrowserDownloadUrl, string? Digest);
 
 public sealed record GitHubReleaseSnapshot(string? TagName, bool Prerelease, IReadOnlyList<GitHubReleaseAsset> Assets);
 
@@ -64,7 +64,7 @@ public sealed class GitHubReleaseFeed: IReleaseFeed, IInternetProbe, IDisposable
                     continue;
                 }
 
-                assets.Add(new GitHubReleaseAsset(asset.Name, uri.AbsoluteUri));
+                assets.Add(new GitHubReleaseAsset(asset.Name, uri.AbsoluteUri, asset.Digest));
             }
 
             snapshot = new GitHubReleaseSnapshot(parsed.TagName, parsed.Prerelease, assets);
@@ -107,10 +107,7 @@ public sealed class GitHubReleaseFeed: IReleaseFeed, IInternetProbe, IDisposable
                 return false;
             }
 
-            long maxBytes = destinationPath.EndsWith(".sha256", StringComparison.OrdinalIgnoreCase)
-                ? SilentUpdatePolicy.MaxSidecarBytes
-                : SilentUpdatePolicy.MaxSetupBytes;
-            if (Exceeds(response.Content, maxBytes)) {
+            if (Exceeds(response.Content, SilentUpdatePolicy.MaxSetupBytes)) {
                 return false;
             }
 
@@ -123,7 +120,7 @@ public sealed class GitHubReleaseFeed: IReleaseFeed, IInternetProbe, IDisposable
             bool copied = false;
             try {
                 await using FileStream file = new(destinationPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-                copied = await CopyBounded(response.Content, file, maxBytes, cancellationToken);
+                copied = await CopyBounded(response.Content, file, SilentUpdatePolicy.MaxSetupBytes, cancellationToken);
             } finally {
                 if (!copied && File.Exists(destinationPath)) {
                     File.Delete(destinationPath);
@@ -194,6 +191,8 @@ public sealed class GitHubReleaseFeed: IReleaseFeed, IInternetProbe, IDisposable
         public string? Name { get; set; }
 
         public string? BrowserDownloadUrl { get; set; }
+
+        public string? Digest { get; set; }
 
     }
 

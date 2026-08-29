@@ -4,30 +4,21 @@ namespace AuthenticatorChooser.Updates;
 
 internal static class SetupIntegrity {
 
-    public static string SidecarFileName(string setupFileName) => setupFileName + ".sha256";
-
-    public static bool TryParseSidecar(string sidecarText, string expectedFileName, out string hex) {
+    public static bool TryParseGitHubDigest(string? digest, out string hex) {
         hex = "";
-        if (string.IsNullOrWhiteSpace(sidecarText) || string.IsNullOrWhiteSpace(expectedFileName)) {
+        if (string.IsNullOrWhiteSpace(digest)) {
             return false;
         }
 
-        string line = sidecarText.Replace("\r", "").Split('\n')[0].Trim();
-        if (line.Length == 0) {
+        string trimmed = digest.Trim();
+        const string prefix = "sha256:";
+        if (!trimmed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) {
             return false;
         }
 
-        string[] parts = line.Split((char[]) [' ', '\t'], 2, StringSplitOptions.RemoveEmptyEntries);
-        string candidate = parts[0].Trim();
+        string candidate = trimmed[prefix.Length..].Trim();
         if (candidate.Length != 64 || !candidate.All(Uri.IsHexDigit)) {
             return false;
-        }
-
-        if (parts.Length > 1) {
-            string named = Path.GetFileName(parts[1].Trim().TrimStart('*'));
-            if (!string.Equals(named, expectedFileName, StringComparison.OrdinalIgnoreCase)) {
-                return false;
-            }
         }
 
         hex = candidate.ToLowerInvariant();
