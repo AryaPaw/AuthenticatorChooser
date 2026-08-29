@@ -69,4 +69,8 @@ When you try to create a passkey in your browser, the website may force it to be
 
 With this script installed, you will by default always be asked whether to save each new passkey on a security key or in the TPM. To change that, edit `options.allowedPasskeyCreationStorage` in the script: `securityKey` or `tpm` instead of `anywhere`.
 
+## Stargazers over time
+
+[![Star History Chart](https://star-history.dera.page/svg?repos=AryaPaw/AuthenticatorChooser&type=Date)](https://github.com/AryaPaw/AuthenticatorChooser/stargazers)
+
 Original program © Ben Hutchison. This repository is an independent fork.
