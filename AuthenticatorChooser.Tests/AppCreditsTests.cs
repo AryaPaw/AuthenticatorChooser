@@ -11,6 +11,7 @@ public sealed class AppCreditsTests {
         AppCredits.CopyrightLine.Should().Contain("©");
         AppCredits.OriginalRepositoryUrl.Should().Contain("Aldaviva");
         AppCredits.ForkRepositoryUrl.Should().Contain("AryaPaw");
+        AppCredits.ReleasesUrl.Should().Be(AppCredits.ForkRepositoryUrl + "/releases");
     }
 
 }

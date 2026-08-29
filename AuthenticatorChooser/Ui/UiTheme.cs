@@ -1,6 +1,6 @@
 using System.Drawing;
 
-namespace AuthenticatorChooser;
+namespace AuthenticatorChooser.Ui;
 
 internal static class UiTheme {
 

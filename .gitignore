@@ -30,5 +30,6 @@ _ReSharper*/
 .vs/
 coverage*.xml
 coverage*.json
+artifacts/
 #Nuget packages folder
 packages/

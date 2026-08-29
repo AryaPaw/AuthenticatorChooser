@@ -1,4 +1,4 @@
-namespace AuthenticatorChooser;
+namespace AuthenticatorChooser.Windows11;
 
 public static class FidoWindow {
 

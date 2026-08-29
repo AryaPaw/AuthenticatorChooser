@@ -18,6 +18,7 @@ public class WindowsSecurityKeyChooser(ChooserOptions options): AbstractSecurity
 
     public override void chooseUsbSecurityKey(SystemWindow fidoPrompt) {
         options.overallStopwatch.Restart();
+        IDisposable? activity = null;
         try {
             if (!isFidoPromptWindow(fidoPrompt)) {
                 LOGGER.Trace("Window 0x{hwnd:x} is not a Windows Security window", fidoPrompt.HWnd);
@@ -26,6 +27,8 @@ public class WindowsSecurityKeyChooser(ChooserOptions options): AbstractSecurity
                 LOGGER.Debug("Alt+Tab is being held, not interacting with Windows Security window");
                 return;
             }
+
+            activity = FidoActivity.Begin();
 
             AutomationElement? fidoEl = fidoPrompt.ToAutomationElement();
             if (fidoEl?.FindFirst(TreeScope.Children, new PropertyCondition(AutomationElement.ClassNameProperty, "ScrollViewer")) is not { } outerScrollViewer) {
@@ -70,7 +73,9 @@ public class WindowsSecurityKeyChooser(ChooserOptions options): AbstractSecurity
 
             bool isShiftDown = Keyboard.IsKeyDown(Key.LeftShift) || Keyboard.IsKeyDown(Key.RightShift);
 
-            strategy.handleWindow(actualTitle!, fidoEl, outerScrollViewer, isShiftDown);
+            IDisposable captured = activity;
+            activity = null;
+            CompleteWindow(strategy.handleWindow(actualTitle!, fidoEl, outerScrollViewer, isShiftDown), captured);
 
         } catch (ElementNotAvailableException e) {
             LOGGER.Error(e, "Element in Windows Security dialog box disappeared before this program could interact with it, skipping this dialog box instance");
@@ -79,6 +84,22 @@ public class WindowsSecurityKeyChooser(ChooserOptions options): AbstractSecurity
         } catch (Exception e) when (e is not OutOfMemoryException) {
             LOGGER.Error(e, "Uncaught exception while handling Windows Security dialog box, skipping it");
             options.state.Report(ChooserEventKind.Error, "Error while handling a Windows Security dialog");
+        } finally {
+            activity?.Dispose();
+        }
+    }
+
+    private static async void CompleteWindow(Task work, IDisposable activity) {
+        try {
+            await work;
+        } catch (ElementNotAvailableException e) {
+            LOGGER.Error(e, "Element in Windows Security dialog box disappeared before this program could interact with it, skipping this dialog box instance");
+        } catch (COMException e) {
+            LOGGER.Error(e, "UI Automation error while selecting security key, skipping this dialog box instance");
+        } catch (Exception e) when (e is not OutOfMemoryException) {
+            LOGGER.Error(e, "Uncaught exception while handling Windows Security dialog box, skipping it");
+        } finally {
+            activity.Dispose();
         }
     }
 

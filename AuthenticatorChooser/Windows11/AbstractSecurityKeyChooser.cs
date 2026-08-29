@@ -1,6 +1,6 @@
 using ManagedWinapi.Windows;
 
-namespace AuthenticatorChooser;
+namespace AuthenticatorChooser.Windows11;
 
 public abstract class AbstractSecurityKeyChooser<T>: SecurityKeyChooser<T> {
 

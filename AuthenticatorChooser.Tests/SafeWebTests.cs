@@ -9,6 +9,8 @@ public sealed class SafeWebTests {
         SafeWeb.TryCreateAllowedUrl(AppCredits.OriginalRepositoryUrl, out Uri? uri).Should().BeTrue();
         uri!.Host.Should().Be("github.com");
         SafeWeb.TryCreateAllowedUrl(AppCredits.ForkRepositoryUrl, out _).Should().BeTrue();
+        SafeWeb.TryCreateAllowedUrl(AppCredits.ReleasesUrl, out Uri? releases).Should().BeTrue();
+        releases!.AbsolutePath.Should().EndWith("/releases");
     }
 
     [Fact]

@@ -1,7 +1,7 @@
 using Microsoft.Win32;
 using Microsoft.Win32.TaskScheduler;
 
-namespace AuthenticatorChooser;
+namespace AuthenticatorChooser.Autostart;
 
 public interface IAutostartService {
 

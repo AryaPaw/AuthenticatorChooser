@@ -2,7 +2,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 
-namespace AuthenticatorChooser;
+namespace AuthenticatorChooser.Ui;
 
 internal static class UiDrawing {
 

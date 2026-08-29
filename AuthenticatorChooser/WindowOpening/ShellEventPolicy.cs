@@ -1,6 +1,4 @@
-using AuthenticatorChooser.WindowOpening;
-
-namespace AuthenticatorChooser;
+namespace AuthenticatorChooser.WindowOpening;
 
 public static class ShellEventPolicy {
 

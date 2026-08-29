@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Windows.Automation;
 
-namespace AuthenticatorChooser;
+namespace AuthenticatorChooser.Windows11;
 
 internal static class PinAutosubmit {
 

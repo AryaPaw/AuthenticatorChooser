@@ -1,4 +1,4 @@
-namespace AuthenticatorChooser;
+namespace AuthenticatorChooser.Ui;
 
 public static class StatusPresenter {
 

@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace AuthenticatorChooser;
+namespace AuthenticatorChooser.Settings;
 
 public static class SettingsStore {
 
@@ -45,7 +45,9 @@ public static class SettingsStore {
             FileLogEnabled = settings.FileLogEnabled,
             LogFilename = settings.LogFilename,
             AutostartOnLogon = true,
-            TrayHintShown = settings.TrayHintShown
+            TrayHintShown = settings.TrayHintShown,
+            AutoUpdateEnabled = true,
+            LastUpdateCheckUtc = settings.LastUpdateCheckUtc
         };
     }
 
@@ -64,7 +66,9 @@ public static class SettingsStore {
             FileLogEnabled = stored.FileLogEnabled,
             LogFilename = stored.LogFilename,
             AutostartOnLogon = stored.AutostartOnLogon,
-            TrayHintShown = stored.TrayHintShown
+            TrayHintShown = stored.TrayHintShown,
+            AutoUpdateEnabled = stored.AutoUpdateEnabled,
+            LastUpdateCheckUtc = stored.LastUpdateCheckUtc
         };
 
         if (cli.SkipAllNonSecurityKeyOptions) {

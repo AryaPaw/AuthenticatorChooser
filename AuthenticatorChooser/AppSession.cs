@@ -46,6 +46,8 @@ public sealed class LaunchRequest {
 
     public bool AutostartOnLogon { get; init; }
 
+    public bool UninstallCleanup { get; init; }
+
     public CliOverrides Cli { get; init; }
 
 }
@@ -97,6 +99,16 @@ public sealed class AppSession: IDisposable {
     }
 
     public LaunchPreparation Prepare(LaunchRequest request) {
+        if (request.UninstallCleanup) {
+            bool cleaned = UninstallCleanup.Execute(autostart, allowedRoot());
+            return new LaunchPreparation {
+                ExitCode = cleaned ? 0 : 1,
+                IsError = !cleaned,
+                MessageTitle = cleaned ? null : ProgramName,
+                Message = cleaned ? null : $"Failed to remove {ProgramName} user data"
+            };
+        }
+
         string path = settingsPath();
         SettingsStore.EnsurePathAllowed(path, allowedRoot());
         AppSettings stored = SettingsStore.Load(path);
@@ -194,6 +206,8 @@ public sealed class AppSession: IDisposable {
                 SettingsStore.Save(settingsPath(), state.ToSettings());
             }
 
+            SilentUpdateRuntime.Start(state, settingsPath(), allowedRoot(), processPath(), ExitFromBackground);
+
             Console.CancelKeyPress += (_, args) => {
                 args.Cancel = true;
                 Startup.RequestExit();
@@ -217,6 +231,15 @@ public sealed class AppSession: IDisposable {
             uiLoop.Run(form);
             SystemEvents.SessionEnding -= onWindowsLogoff;
             return 0;
+
+        void ExitFromBackground() {
+            if (form.IsHandleCreated && form.InvokeRequired) {
+                form.BeginInvoke(ExitApp);
+                return;
+            }
+
+            ExitApp();
+        }
 
         void ExitApp() {
             Startup.RequestExit();

@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace AuthenticatorChooser;
+namespace AuthenticatorChooser.Ui;
 
 public sealed class TrayIcon: IDisposable {
 

@@ -2,7 +2,7 @@ name: .NET
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
     tags: [ 'v*' ]
   pull_request:
   workflow_dispatch:
@@ -42,11 +42,57 @@ jobs:
     - name: Publish
       run: dotnet publish ${{ env.ProjectName }} --no-build --runtime ${{ matrix.targetPlatform }} --configuration Release --no-self-contained -p:PublishSingleFile=true
 
+    - name: Read version from csproj
+      shell: pwsh
+      run: |
+        [xml]$proj = Get-Content AuthenticatorChooser/AuthenticatorChooser.csproj
+        $version = @(
+          $proj.Project.PropertyGroup |
+            ForEach-Object { $_.Version } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+        )[0]
+        if ([string]::IsNullOrWhiteSpace($version)) {
+          throw "AuthenticatorChooser.csproj is missing <Version>"
+        }
+        Add-Content -Path $env:GITHUB_ENV -Value "APP_VERSION=$version"
+        Write-Host "APP_VERSION=$version"
+
+    - name: Install Inno Setup
+      run: choco install innosetup --version=6.7.1 --no-progress -y
+
+    - name: Compile installer
+      run: |
+        $arch = if ("${{ matrix.targetPlatform }}" -eq "win-arm64") { "arm64" } else { "x64compatible" }
+        $exe = Join-Path (Get-Location) "${{ env.ProjectName }}\bin\Release\net8.0-windows\${{ matrix.targetPlatform }}\publish\AuthenticatorChooser.exe"
+        $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+        & $iscc "installer\AuthenticatorChooser.iss" `
+          "/DMyAppVersion=$env:APP_VERSION" `
+          "/DSourceExe=$exe" `
+          "/DOutputBase=AuthenticatorChooser-Setup-${{ matrix.targetPlatform }}" `
+          "/DInstallArch=$arch"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    - name: Write Setup SHA256 sidecar
+      shell: pwsh
+      run: |
+        $setup = "artifacts/AuthenticatorChooser-Setup-${{ matrix.targetPlatform }}.exe"
+        if (-not (Test-Path $setup)) { throw "Missing $setup" }
+        $name = [IO.Path]::GetFileName((Resolve-Path $setup))
+        $hash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant()
+        [IO.File]::WriteAllText("$setup.sha256", "$hash  $name`n")
+
+    - name: Stage artifacts
+      run: |
+        New-Item -ItemType Directory -Force staging | Out-Null
+        Copy-Item "${{ env.ProjectName }}\bin\Release\net8.0-windows\${{ matrix.targetPlatform }}\publish\AuthenticatorChooser.exe" "staging\AuthenticatorChooser.exe"
+        Copy-Item "artifacts\AuthenticatorChooser-Setup-${{ matrix.targetPlatform }}.exe" "staging\AuthenticatorChooser-Setup-${{ matrix.targetPlatform }}.exe"
+        Copy-Item "artifacts\AuthenticatorChooser-Setup-${{ matrix.targetPlatform }}.exe.sha256" "staging\AuthenticatorChooser-Setup-${{ matrix.targetPlatform }}.exe.sha256"
+
     - name: Upload build artifacts
       uses: actions/upload-artifact@v7
       with:
         name: ${{ env.ProjectName }}-${{ matrix.targetPlatform }}
-        path: ${{ env.ProjectName }}/bin/Release/net8.0-windows/${{ matrix.targetPlatform }}/publish/*.exe
+        path: staging/*
         if-no-files-found: error
         retention-days: 90
 
@@ -68,11 +114,19 @@ jobs:
       run: |
         mv dist/AuthenticatorChooser-win-x64/AuthenticatorChooser.exe dist/AuthenticatorChooser-win-x64.exe
         mv dist/AuthenticatorChooser-win-arm64/AuthenticatorChooser.exe dist/AuthenticatorChooser-win-arm64.exe
+        mv dist/AuthenticatorChooser-win-x64/AuthenticatorChooser-Setup-win-x64.exe dist/AuthenticatorChooser-Setup-win-x64.exe
+        mv dist/AuthenticatorChooser-win-arm64/AuthenticatorChooser-Setup-win-arm64.exe dist/AuthenticatorChooser-Setup-win-arm64.exe
+        mv dist/AuthenticatorChooser-win-x64/AuthenticatorChooser-Setup-win-x64.exe.sha256 dist/AuthenticatorChooser-Setup-win-x64.exe.sha256
+        mv dist/AuthenticatorChooser-win-arm64/AuthenticatorChooser-Setup-win-arm64.exe.sha256 dist/AuthenticatorChooser-Setup-win-arm64.exe.sha256
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
         files: |
+          dist/AuthenticatorChooser-Setup-win-x64.exe
+          dist/AuthenticatorChooser-Setup-win-x64.exe.sha256
+          dist/AuthenticatorChooser-Setup-win-arm64.exe
+          dist/AuthenticatorChooser-Setup-win-arm64.exe.sha256
           dist/AuthenticatorChooser-win-x64.exe
           dist/AuthenticatorChooser-win-arm64.exe
         generate_release_notes: true

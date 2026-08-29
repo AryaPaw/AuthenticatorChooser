@@ -1,4 +1,4 @@
-namespace AuthenticatorChooser;
+namespace AuthenticatorChooser.Fido;
 
 public enum PinCaptureKind {
     Unchanged,

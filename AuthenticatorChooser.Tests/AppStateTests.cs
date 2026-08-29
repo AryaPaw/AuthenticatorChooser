@@ -14,7 +14,9 @@ public sealed class AppStateTests {
             FileLogEnabled = true,
             LogFilename = "a.log",
             AutostartOnLogon = true,
-            TrayHintShown = true
+            TrayHintShown = true,
+            AutoUpdateEnabled = false,
+            LastUpdateCheckUtc = new DateTime(2026, 8, 29, 17, 0, 0, DateTimeKind.Utc)
         };
         AppState state = AppState.FromSettings(settings);
         AppSettings round = state.ToSettings();
@@ -25,6 +27,8 @@ public sealed class AppStateTests {
         round.LogFilename.Should().Be("a.log");
         round.AutostartOnLogon.Should().BeTrue();
         round.TrayHintShown.Should().BeTrue();
+        round.AutoUpdateEnabled.Should().BeFalse();
+        round.LastUpdateCheckUtc.Should().Be(settings.LastUpdateCheckUtc);
         round.SchemaVersion.Should().Be(AppSettings.CurrentSchema);
     }
 

@@ -1,4 +1,4 @@
-namespace AuthenticatorChooser;
+namespace AuthenticatorChooser.Windows11;
 
 public enum Win1125H2ChallengeAction {
 

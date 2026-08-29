@@ -10,6 +10,8 @@ public sealed class AppState {
     private string? logFilename;
     private bool autostartOnLogon = true;
     private bool trayHintShown;
+    private bool autoUpdateEnabled = true;
+    private DateTime? lastUpdateCheckUtc;
     private int schemaVersion = AppSettings.CurrentSchema;
     private ChooserEventKind lastEvent = ChooserEventKind.Waiting;
     private string lastEventDetail = "Waiting for Windows Security FIDO dialog boxes";
@@ -79,6 +81,24 @@ public sealed class AppState {
         set => Set(ref trayHintShown, value);
     }
 
+    public bool AutoUpdateEnabled {
+        get {
+            lock (gate) {
+                return autoUpdateEnabled;
+            }
+        }
+        set => Set(ref autoUpdateEnabled, value);
+    }
+
+    public DateTime? LastUpdateCheckUtc {
+        get {
+            lock (gate) {
+                return lastUpdateCheckUtc;
+            }
+        }
+        set => Set(ref lastUpdateCheckUtc, value);
+    }
+
     public ChooserEventKind LastEvent {
         get {
             lock (gate) {
@@ -110,6 +130,8 @@ public sealed class AppState {
             logFilename = Logging.TryNormalizeLogFileName(settings.LogFilename);
             autostartOnLogon = settings.AutostartOnLogon;
             trayHintShown = settings.TrayHintShown;
+            autoUpdateEnabled = settings.AutoUpdateEnabled;
+            lastUpdateCheckUtc = settings.LastUpdateCheckUtc;
             schemaVersion = settings.SchemaVersion;
         }
 
@@ -126,7 +148,9 @@ public sealed class AppState {
                 FileLogEnabled = fileLogEnabled,
                 LogFilename = logFilename,
                 AutostartOnLogon = autostartOnLogon,
-                TrayHintShown = trayHintShown
+                TrayHintShown = trayHintShown,
+                AutoUpdateEnabled = autoUpdateEnabled,
+                LastUpdateCheckUtc = lastUpdateCheckUtc
             };
         }
     }

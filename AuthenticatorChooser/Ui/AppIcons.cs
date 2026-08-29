@@ -1,7 +1,7 @@
 using System.Drawing;
 using System.Reflection;
 
-namespace AuthenticatorChooser;
+namespace AuthenticatorChooser.Ui;
 
 internal static class AppIcons {
 

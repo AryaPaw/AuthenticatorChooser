@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace AuthenticatorChooser;
+namespace AuthenticatorChooser.Fido;
 
 public sealed class ChooserOptions(AppState state) {
 

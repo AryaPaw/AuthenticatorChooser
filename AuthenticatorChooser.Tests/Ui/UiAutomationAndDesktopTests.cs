@@ -103,6 +103,10 @@ public sealed class UiAutomationAndDesktopTests: IDisposable {
             state.AutoSubmitPinLength.Should().BeNull();
             SettingsStore.Load(settings).AutoSubmitPinLength.Should().Be(0);
             Flatten(form).OfType<Label>().Select(l => l.Text).Should().Contain(t => t.Contains("Ben Hutchison") && t.Contains("AryaPaw"));
+            Flatten(form).OfType<Label>().Select(l => l.Text).Should().NotContain(t => t.Contains("·"));
+            Flatten(form).OfType<LinkLabel>().Should().Contain(l => l.AccessibleName == "versionReleases" && l.Text.Contains("Version"));
+            Flatten(form).OfType<CheckBox>().Should().Contain(c => c.AccessibleName == "autoUpdateEnabled");
+            Flatten(form).OfType<Button>().Should().Contain(b => b.AccessibleName == "resetSettings");
             form.ClientSize.Height.Should().BeGreaterThanOrEqualTo(600);
             Flatten(form).OfType<Button>().First(b => b.AccessibleName == "pauseToggle").PerformClick();
             state.Enabled.Should().BeFalse();

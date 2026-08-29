@@ -1,4 +1,4 @@
-namespace AuthenticatorChooser;
+namespace AuthenticatorChooser.Windows11;
 
 public readonly record struct Win1123H2ListDecision(bool IsLocalWindowsHelloTpmPrompt, bool SelectChoice, bool TrySubmitNext);
 

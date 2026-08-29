@@ -16,6 +16,7 @@ public sealed class SettingsStoreTests: IDisposable {
         AppSettings loaded = SettingsStore.Load(Path.Combine(root, "missing.json"));
         loaded.Enabled.Should().BeTrue();
         loaded.AutostartOnLogon.Should().BeTrue();
+        loaded.AutoUpdateEnabled.Should().BeTrue();
         loaded.SchemaVersion.Should().Be(AppSettings.CurrentSchema);
     }
 
@@ -34,11 +35,20 @@ public sealed class SettingsStoreTests: IDisposable {
     [Fact]
     public void SaveAndLoad_RoundTrips() {
         string path = Path.Combine(root, "settings.json");
-        SettingsStore.Save(path, new AppSettings { Enabled = false, AutoSubmitPinLength = 6, SkipAllNonSecurityKeyOptions = true });
+        DateTime checkedAt = new(2026, 8, 29, 17, 0, 0, DateTimeKind.Utc);
+        SettingsStore.Save(path, new AppSettings {
+            Enabled = false,
+            AutoSubmitPinLength = 6,
+            SkipAllNonSecurityKeyOptions = true,
+            AutoUpdateEnabled = false,
+            LastUpdateCheckUtc = checkedAt
+        });
         AppSettings loaded = SettingsStore.Load(path);
         loaded.Enabled.Should().BeFalse();
         loaded.AutoSubmitPinLength.Should().Be(6);
         loaded.SkipAllNonSecurityKeyOptions.Should().BeTrue();
+        loaded.AutoUpdateEnabled.Should().BeFalse();
+        loaded.LastUpdateCheckUtc.Should().Be(checkedAt);
     }
 
     [Fact]

@@ -1,4 +1,4 @@
-namespace AuthenticatorChooser;
+namespace AuthenticatorChooser.Fido;
 
 public readonly record struct ChoiceMatch(object Id, string Name);
 

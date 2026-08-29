@@ -1,4 +1,4 @@
-namespace AuthenticatorChooser;
+namespace AuthenticatorChooser.Settings;
 
 public sealed class AppSettings {
 
@@ -19,5 +19,9 @@ public sealed class AppSettings {
     public bool AutostartOnLogon { get; set; } = true;
 
     public bool TrayHintShown { get; set; }
+
+    public bool AutoUpdateEnabled { get; set; } = true;
+
+    public DateTime? LastUpdateCheckUtc { get; set; }
 
 }

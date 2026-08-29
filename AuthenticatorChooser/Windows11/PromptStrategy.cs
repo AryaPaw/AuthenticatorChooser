@@ -1,6 +1,6 @@
 using System.Windows.Automation;
 
-namespace AuthenticatorChooser;
+namespace AuthenticatorChooser.Windows11;
 
 public interface PromptStrategy {
 

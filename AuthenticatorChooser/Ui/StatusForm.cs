@@ -1,7 +1,7 @@
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace AuthenticatorChooser;
+namespace AuthenticatorChooser.Ui;
 
 public sealed class StatusForm: Form {
 
@@ -20,10 +20,9 @@ public sealed class StatusForm: Form {
     private CheckBox skipAllBox = null!;
     private CheckBox autostartBox = null!;
     private CheckBox logBox = null!;
-    private TextBox pinSample = null!;
-    private Label pinLiveCount = null!;
-    private Label pinSavedSummary = null!;
-    private ThemedButton pinToggle = null!;
+    private CheckBox autoUpdateBox = null!;
+    private StatusPinBlock pinBlock = null!;
+    private StatusFooter footer = null!;
     private ThemedButton pauseButton = null!;
     private bool forceClose;
     private bool syncing;
@@ -48,7 +47,7 @@ public sealed class StatusForm: Form {
         MaximizeBox = false;
         MinimizeBox = true;
         StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = new Size(640, 620);
+        MinimumSize = new Size(640, 700);
         AutoScaleMode = AutoScaleMode.Dpi;
         AutoScaleDimensions = new SizeF(96F, 96F);
         ShowInTaskbar = false;
@@ -70,7 +69,8 @@ public sealed class StatusForm: Form {
         shell.Controls.Add(BuildHeader(), 0, 0);
         shell.Controls.Add(BuildActions(), 0, 1);
         shell.Controls.Add(BuildBody(), 0, 2);
-        shell.Controls.Add(BuildFooter(), 0, 3);
+        footer = new StatusFooter();
+        shell.Controls.Add(footer, 0, 3);
         Controls.Add(shell);
 
         Load += (_, _) => FitToContent();
@@ -147,17 +147,8 @@ public sealed class StatusForm: Form {
             BackColor = Color.Transparent,
             Margin = Padding.Empty
         };
-        Label version = new() {
-            AutoSize = true,
-            Text = AppCredits.VersionLine,
-            Font = UiTheme.Caption,
-            ForeColor = UiTheme.OnHeaderMuted,
-            BackColor = Color.Transparent,
-            Margin = new Padding(12, 8, 0, 0),
-            Anchor = AnchorStyles.Top | AnchorStyles.Right
-        };
         titleRow.Controls.Add(title, 0, 0);
-        titleRow.Controls.Add(version, 1, 0);
+        titleRow.Controls.Add(VersionLink(), 1, 0);
         header.Controls.Add(titleRow, 1, 0);
 
         Label subtitle = Wrap(AppCredits.ProductSubtitle, UiTheme.Body, UiTheme.OnHeaderMuted, Color.Transparent);
@@ -232,51 +223,8 @@ public sealed class StatusForm: Form {
         Add(fidoStack, skipAllBox, 6);
         Add(fidoStack, Wrap("When this is off, the Security Key is chosen only if the other option is pairing a new phone. When it is on, Windows Hello and a paired phone are skipped too.", UiTheme.Caption, UiTheme.Muted, UiTheme.Card), 16);
         Add(fidoStack, Heading("Autosubmit security-key PIN"), 8);
-        pinSavedSummary = new Label {
-            AutoSize = true,
-            Font = UiTheme.BodyBold,
-            ForeColor = UiTheme.Ink,
-            BackColor = UiTheme.Card,
-            MaximumSize = new Size(600, 0)
-        };
-        wrappingLabels.Add(pinSavedSummary);
-        Add(fidoStack, pinSavedSummary, 8);
-        pinSample = new TextBox {
-            Width = 280,
-            Font = UiTheme.Body,
-            UseSystemPasswordChar = true,
-            MaxLength = PinPolicy.MaxLength,
-            AccessibleName = "pinSample",
-            CausesValidation = false,
-            Margin = Padding.Empty
-        };
-        pinSample.KeyDown += (_, e) => {
-            if (e.KeyCode == Keys.Enter) {
-                e.SuppressKeyPress = true;
-                ApplyPinToggle();
-            }
-        };
-        Add(fidoStack, pinSample, 6);
-        pinLiveCount = new Label {
-            AutoSize = true,
-            Text = PinPolicy.LiveCountLabel(0),
-            Font = UiTheme.Caption,
-            ForeColor = UiTheme.Muted,
-            BackColor = UiTheme.Card
-        };
-        pinSample.TextChanged += (_, _) => {
-            if (!pinSample.Enabled) {
-                return;
-            }
-
-            pinLiveCount.Text = PinPolicy.LiveCountLabel(pinSample.TextLength);
-        };
-        Add(fidoStack, pinLiveCount, 8);
-        pinToggle = new ThemedButton("Turn on", true);
-        pinToggle.AccessibleName = "pinToggle";
-        pinToggle.Click += (_, _) => ApplyPinToggle();
-        Add(fidoStack, pinToggle, 8);
-        Add(fidoStack, Wrap("USB-key PIN only, not Windows Hello. Turn on keeps the count and forgets the PIN. Turn off disables autosubmit.", UiTheme.Caption, UiTheme.Muted, UiTheme.Card), 0);
+        pinBlock = new StatusPinBlock(state, Persist);
+        Add(fidoStack, pinBlock, 0);
         fido.Controls.Add(fidoStack);
 
         CardPanel app = new() { Dock = DockStyle.Fill, AutoSize = true };
@@ -314,7 +262,27 @@ public sealed class StatusForm: Form {
             Logging.initialize(state.FileLogEnabled, state.LogFilename);
             Persist();
         };
-        Add(appStack, logBox, 12);
+        Add(appStack, logBox, 10);
+        autoUpdateBox = CreateCheck("Install updates silently from GitHub");
+        autoUpdateBox.AccessibleName = "autoUpdateEnabled";
+        autoUpdateBox.CheckedChanged += (_, _) => {
+            if (syncing) {
+                return;
+            }
+
+            state.AutoUpdateEnabled = autoUpdateBox.Checked;
+            Persist();
+        };
+        Add(appStack, autoUpdateBox, 6);
+        Add(appStack, Wrap("When a newer GitHub Release exists, the installer is downloaded and applied in the background. No notifications.", UiTheme.Caption, UiTheme.Muted, UiTheme.Card), 12);
+        FlowLayoutPanel appButtons = new() {
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = true,
+            BackColor = UiTheme.Card,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty
+        };
         ThemedButton openLog = new("Open log", false);
         openLog.Click += (_, _) => {
             string logPath = Logging.ResolveLogPath(state.LogFilename, allowedRoot);
@@ -324,70 +292,20 @@ public sealed class StatusForm: Form {
                 MessageBox.Show(this, $"Log file not found yet:\n{logPath}", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         };
-        Add(appStack, openLog, 0);
+        ThemedButton reset = new("Reset settings", false);
+        reset.AccessibleName = "resetSettings";
+        reset.MinimumSize = new Size(168, 40);
+        reset.MaximumSize = new Size(168, 40);
+        reset.Size = new Size(168, 40);
+        reset.Click += (_, _) => ResetSettings();
+        appButtons.Controls.AddRange([openLog, reset]);
+        Add(appStack, appButtons, 0);
         app.Controls.Add(appStack);
 
         host.Controls.Add(fido, 0, 0);
         host.Controls.Add(app, 0, 1);
         return host;
     }
-
-    private Panel BuildFooter() {
-        TableLayoutPanel footer = new() {
-            Dock = DockStyle.Fill,
-            AutoSize = true,
-            ColumnCount = 1,
-            RowCount = 3,
-            BackColor = UiTheme.Brand50,
-            Padding = new Padding(UiTheme.PagePad, 14, UiTheme.PagePad, 16)
-        };
-        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        footer.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        footer.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        footer.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-
-        Label about = Wrap(AppCredits.Attribution, UiTheme.Caption, UiTheme.Muted, Color.Transparent);
-        Label hint = Wrap("Hold Shift on a FIDO prompt to skip one automatic click. Close this window to keep the tray icon.", UiTheme.Caption, UiTheme.Muted, Color.Transparent);
-        about.Margin = new Padding(0, 0, 0, 8);
-        hint.Margin = new Padding(0, 0, 0, 8);
-
-        FlowLayoutPanel links = new() {
-            AutoSize = true,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = true,
-            BackColor = Color.Transparent,
-            Margin = Padding.Empty
-        };
-        LinkLabel original = Link("Original source");
-        Label sep = new() {
-            AutoSize = true,
-            Text = "  ·  ",
-            Font = UiTheme.Caption,
-            ForeColor = UiTheme.Muted,
-            BackColor = Color.Transparent,
-            Margin = Padding.Empty
-        };
-        LinkLabel fork = Link("This fork");
-        original.LinkClicked += (_, _) => SafeWeb.OpenHttps(AppCredits.OriginalRepositoryUrl);
-        fork.LinkClicked += (_, _) => SafeWeb.OpenHttps(AppCredits.ForkRepositoryUrl);
-        links.Controls.AddRange([original, sep, fork]);
-
-        footer.Controls.Add(about, 0, 0);
-        footer.Controls.Add(hint, 0, 1);
-        footer.Controls.Add(links, 0, 2);
-        return footer;
-    }
-
-    private static LinkLabel Link(string text) =>
-        new() {
-            AutoSize = true,
-            Text = text,
-            Font = UiTheme.Caption,
-            LinkColor = UiTheme.Brand800,
-            ActiveLinkColor = UiTheme.Brand900,
-            BackColor = Color.Transparent,
-            Margin = Padding.Empty
-        };
 
     private static TableLayoutPanel Stack() {
         TableLayoutPanel stack = new() {
@@ -450,6 +368,9 @@ public sealed class StatusForm: Form {
         foreach (Label label in wrappingLabels) {
             label.MaximumSize = new Size(width, 0);
         }
+
+        pinBlock.ApplyWrapWidth(width);
+        footer.ApplyWrapWidth(width);
     }
 
     private void FitToContent() {
@@ -478,48 +399,14 @@ public sealed class StatusForm: Form {
         skipAllBox.Checked = state.SkipAllNonSecurityKeyOptions;
         autostartBox.Checked = state.AutostartOnLogon;
         logBox.Checked = state.FileLogEnabled;
-        pinSavedSummary.Text = PinPolicy.SavedLengthSummary(state.AutoSubmitPinLength);
-        ApplyPinModeView(PinModePolicy.View(state.AutoSubmitPinLength, pinLiveCount.Text));
+        autoUpdateBox.Checked = state.AutoUpdateEnabled;
+        pinBlock.BindFromState();
         syncing = false;
     }
 
-    internal PinToggleDecision ApplyPinToggle() {
-        PinToggleDecision decision = PinModePolicy.Press(state.AutoSubmitPinLength, pinSample.Enabled ? pinSample.Text : null);
-        if (decision.Kind is PinToggleKind.TurnOn or PinToggleKind.TurnOff) {
-            state.AutoSubmitPinLength = decision.LengthAfter;
-            Persist();
-            ClearPinSample();
-        } else if (decision.Kind == PinToggleKind.RejectedNeedLength) {
-            ClearPinSample();
-        }
+    internal PinToggleDecision ApplyPinToggle() => pinBlock.ApplyPinToggle();
 
-        ApplyPinModeView(decision.View);
-        return decision;
-    }
-
-    internal void TurnOffPinAutosubmit() {
-        if (!PinModePolicy.IsArmed(state.AutoSubmitPinLength)) {
-            ApplyPinModeView(PinModePolicy.View(null));
-            return;
-        }
-
-        ApplyPinToggle();
-    }
-
-    private void ApplyPinModeView(PinModeView view) {
-        pinToggle.Text = view.ButtonText;
-        pinSavedSummary.Text = view.Summary;
-        pinLiveCount.Text = view.Hint;
-        pinSample.Enabled = view.FieldEnabled;
-        if (!view.FieldEnabled) {
-            ClearPinSample();
-        }
-    }
-
-    private void ClearPinSample() {
-        pinSample.Clear();
-        pinSample.Text = string.Empty;
-    }
+    internal void TurnOffPinAutosubmit() => pinBlock.TurnOffPinAutosubmit();
 
     private void Persist() {
         SettingsStore.EnsurePathAllowed(settingsPath, allowedRoot);
@@ -533,7 +420,7 @@ public sealed class StatusForm: Form {
 
         Hide();
         ShowInTaskbar = false;
-        ClearPinSample();
+        pinBlock.ClearPinSample();
         if (!state.TrayHintShown) {
             trayIcon.ShowRunningInTrayHint();
             state.TrayHintShown = true;
@@ -541,6 +428,41 @@ public sealed class StatusForm: Form {
         }
 
         return true;
+    }
+
+    private static LinkLabel VersionLink() {
+        LinkLabel version = new() {
+            AutoSize = true,
+            Text = AppCredits.VersionLine,
+            Font = UiTheme.Caption,
+            LinkColor = UiTheme.OnHeaderMuted,
+            ActiveLinkColor = UiTheme.OnBrand,
+            VisitedLinkColor = UiTheme.OnHeaderMuted,
+            LinkBehavior = LinkBehavior.HoverUnderline,
+            BackColor = Color.Transparent,
+            Margin = new Padding(12, 8, 0, 0),
+            Anchor = AnchorStyles.Top | AnchorStyles.Right,
+            AccessibleName = "versionReleases"
+        };
+        version.LinkClicked += (_, _) => SafeWeb.OpenHttps(AppCredits.ReleasesUrl);
+        return version;
+    }
+
+    private void ResetSettings() {
+        DialogResult answer = MessageBox.Show(
+            this,
+            "Reset all options to their defaults? Autostart, PIN autosubmit, logging, and silent updates will return to factory values.",
+            Text,
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question,
+            MessageBoxDefaultButton.Button2);
+        if (answer != DialogResult.Yes) {
+            return;
+        }
+
+        if (!SettingsReset.TryApply(state, autostart, executablePath, settingsPath, allowedRoot)) {
+            MessageBox.Show(this, "Settings were reset, but the logon scheduled task could not be updated.", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
     private void OnFormClosing(object? sender, FormClosingEventArgs e) {

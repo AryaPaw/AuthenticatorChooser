@@ -9,9 +9,24 @@ public sealed class AppSessionTests: IDisposable {
     private readonly string settingsPath;
 
     public AppSessionTests() {
-        root = Path.Combine(Path.GetTempPath(), "AuthenticatorChooserSession", Guid.NewGuid().ToString("N"));
+        root = Path.Combine(Path.GetTempPath(), "AuthenticatorChooserSession", Guid.NewGuid().ToString("N"), nameof(AuthenticatorChooser));
         Directory.CreateDirectory(root);
         settingsPath = Path.Combine(root, "settings.json");
+    }
+
+    [Fact]
+    public void Prepare_UninstallCleanup_DoesNotStartOrSave() {
+        IAutostartService autostart = Substitute.For<IAutostartService>();
+        autostart.Unregister().Returns(true);
+        ISingleInstanceService single = Substitute.For<ISingleInstanceService>();
+        using AppSession session = Create(autostart, single);
+        File.WriteAllText(settingsPath, "{}");
+        LaunchPreparation result = session.Prepare(Startup.ToLaunchRequest(false, false, false, null, (false, null), true));
+        result.ExitCode.Should().Be(0);
+        result.State.Should().BeNull();
+        Directory.Exists(root).Should().BeFalse();
+        autostart.Received(1).Unregister();
+        single.DidNotReceive().TryAcquire();
     }
 
     [Fact]

@@ -22,6 +22,9 @@ public static class UsageText {
         {processFilename} --help
             Shows this usage.
 
+        {processFilename} --uninstall-cleanup
+            Removes this user's scheduled task, startup registry value, and %AppData%\AuthenticatorChooser. Used by the uninstaller.
+
         For more information, see https://github.com/AryaPaw/AuthenticatorChooser.
         Press Ctrl+C to copy this message.
         """;

@@ -10,6 +10,8 @@ public static class AppCredits {
 
     public const string ForkRepositoryUrl = "https://github.com/AryaPaw/AuthenticatorChooser";
 
+    public static string ReleasesUrl => ForkRepositoryUrl + "/releases";
+
     public static string ProductSubtitle =>
         "Chooses the USB security key in Windows FIDO prompts.";
 

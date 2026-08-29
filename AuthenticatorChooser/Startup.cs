@@ -26,12 +26,16 @@ public class Startup {
     [Option(DefaultHelpOptionConvention.DefaultHelpTemplate, CommandOptionType.NoValue)]
     public bool help { get; }
 
+    [Option("--uninstall-cleanup", CommandOptionType.NoValue)]
+    public bool uninstallCleanup { get; }
+
     public static void RequestExit() => EXITING_TRIGGER.Cancel();
 
-    public static LaunchRequest ToLaunchRequest(bool help, bool autostartOnLogon, bool skipAll, int? pinLength, (bool enabled, string? filename) log) =>
+    public static LaunchRequest ToLaunchRequest(bool help, bool autostartOnLogon, bool skipAll, int? pinLength, (bool enabled, string? filename) log, bool uninstallCleanup = false) =>
         new() {
             Help = help,
             AutostartOnLogon = autostartOnLogon,
+            UninstallCleanup = uninstallCleanup,
             Cli = new CliOverrides(skipAll, pinLength, log.enabled, log.filename, autostartOnLogon)
         };
 
@@ -64,7 +68,7 @@ public class Startup {
             new WinFormsUiLoop());
 
         try {
-            return appSession.Run(ToLaunchRequest(help, autostartOnLogon, skipAllNonSecurityKeyOptions, autosubmitPinLength, log));
+            return appSession.Run(ToLaunchRequest(help, autostartOnLogon, skipAllNonSecurityKeyOptions, autosubmitPinLength, log, uninstallCleanup));
         } catch (Exception e) when (e is not OutOfMemoryException) {
             MessageBox.Show($"Uncaught exception: {e}", AppSession.ProgramName, MessageBoxButtons.OK, MessageBoxIcon.Error);
             return 1;
