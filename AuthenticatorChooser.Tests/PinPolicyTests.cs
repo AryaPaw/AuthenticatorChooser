@@ -28,6 +28,7 @@ public sealed class PinPolicyTests {
     public void LengthOfUiaValue_TreatsNullAsZero() {
         PinAutosubmit.LengthOfUiaValue(null).Should().Be(0);
         PinAutosubmit.LengthOfUiaValue("abcd").Should().Be(4);
+        PinAutosubmit.LengthOfUiaValue(12).Should().Be(2);
     }
 
 }
