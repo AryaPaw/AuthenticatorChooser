@@ -7,9 +7,12 @@ public class Win1123H2Strategy(ChooserOptions options): Win11Strategy(options) {
 
     private static readonly Logger LOGGER = LogManager.GetLogger(typeof(Win1123H2Strategy).FullName!);
 
-    public override bool canHandleTitle(string? actualTitle) => I18N.getStrings(I18N.Key.SIGN_IN_WITH_YOUR_PASSKEY)
-        .Concat(options.skipAllNonSecurityKeyOptions || options.autoSubmitPinLength >= MIN_PIN_LENGTH ? I18N.getStrings(I18N.Key.MAKING_SURE_ITS_YOU) : [])
-        .Any(expected => expected.Equals(actualTitle, StringComparison.CurrentCulture));
+    public override bool canHandleTitle(string? actualTitle) =>
+        TitlePolicy.CanHandleWin1123H2(
+            actualTitle,
+            TitlePolicy.IncludeAggressiveTitles(options.skipAllNonSecurityKeyOptions, options.autoSubmitPinLength),
+            I18N.getStrings(I18N.Key.SIGN_IN_WITH_YOUR_PASSKEY),
+            I18N.getStrings(I18N.Key.MAKING_SURE_ITS_YOU));
 
     /**
      * If we're on the TPM dialog, and the user wants to absolutely always use security keys, then we just selected "Use another device" to see the list of all authenticator choices, so the dialog is closing because we selected something, so don't do anything else with the soon to be nonexistent dialog.
@@ -43,33 +46,40 @@ public class Win1123H2Strategy(ChooserOptions options): Win11Strategy(options) {
             return;
         }
 
-        bool               isLocalWindowsHelloTpmPrompt = false;
-        AutomationElement? desiredChoice                = getSecurityKeyChoice(authenticatorChoices);
+        AutomationElement? desiredChoice = getSecurityKeyChoice(authenticatorChoices);
+        bool securityKeyFound = desiredChoice != null;
+        AutomationElement? useAnother = null;
         if (desiredChoice == null && options.skipAllNonSecurityKeyOptions) {
-            desiredChoice                = authenticatorChoices.FirstOrDefault(choice => choice.nameContainsAny(I18N.getStrings(I18N.Key.USE_ANOTHER_DEVICE))); // #15
-            isLocalWindowsHelloTpmPrompt = desiredChoice != null;
+            useAnother = authenticatorChoices.FirstOrDefault(choice => choice.nameContainsAny(I18N.getStrings(I18N.Key.USE_ANOTHER_DEVICE)));
+            desiredChoice = useAnother;
         }
 
         if (desiredChoice == null) {
             LOGGER.Debug("Desired choice not found, skipping");
+            options.state.Report(ChooserEventKind.DesiredChoiceMissing, "Desired choice not found, skipping");
             return;
         }
 
-        /*
-         * Select the desired choice in preparation to click Next later.
-         * However, if we're both on the TPM credential screen (PIN/fingerprint/face) AND the user is holding Shift to not submit the dialog, then don't select it, because that would submit the "Use another device" choice to move from the TPM credential dialog to the authenticator choice list dialog.
-         */
-        if (!(isLocalWindowsHelloTpmPrompt && isShiftDown)) {
+        SkipReason skipReason = getSkipReason(desiredChoice, authenticatorChoices, isShiftDown);
+        Win1123H2ListDecision decision = Win1123H2ListPolicy.Decide(
+            securityKeyFound,
+            useAnother != null,
+            options.skipAllNonSecurityKeyOptions,
+            isShiftDown,
+            skipReason);
+
+        if (decision.SelectChoice) {
             ((SelectionItemPattern) desiredChoice.GetCurrentPattern(SelectionItemPattern.Pattern)).Select();
         }
 
-        if (isLocalWindowsHelloTpmPrompt) {
-            // do nothing because the prompt either has already closed or will remain open due to Shift being held down
+        if (decision.IsLocalWindowsHelloTpmPrompt) {
+            // prompt already closed or remains open because Shift is held
         } else if (fidoEl.FindFirst(TreeScope.Children, NEXT_BUTTON_CONDITION) is not { } nextButton) {
             LOGGER.Error("Could not find Next button in Windows Security dialog box, skipping this dialog box instance");
-        } else if (!shouldSkipSubmission(desiredChoice, authenticatorChoices, isShiftDown)) {
+        } else if (decision.TrySubmitNext) {
             ((InvokePattern) nextButton.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
             LOGGER.Info("Next button pressed {0:N3} sec after dialog appeared", options.overallStopwatch.Elapsed.TotalSeconds);
+            options.state.Report(ChooserEventKind.ChoseSecurityKey, "Security key selected");
         }
     }
 

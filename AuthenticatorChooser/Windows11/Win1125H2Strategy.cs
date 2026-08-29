@@ -16,40 +16,64 @@ public class Win1125H2Strategy(ChooserOptions options): Win11Strategy(options) {
         new PropertyCondition(AutomationElement.ClassNameProperty, "TextBlock"),
         new PropertyCondition(AutomationElement.HeadingLevelProperty, AutomationHeadingLevel.None));
 
-    public override bool canHandleTitle(string? actualTitle) => I18N.getStrings(I18N.Key.CHOOSE_A_PASSKEY)
-        .Concat(options.skipAllNonSecurityKeyOptions || options.autoSubmitPinLength >= MIN_PIN_LENGTH ? I18N.getStrings(I18N.Key.SIGN_IN_WITH_A_PASSKEY) : [])
-        .Any(expected => expected.Equals(actualTitle, StringComparison.CurrentCulture));
+    public override bool canHandleTitle(string? actualTitle) =>
+        TitlePolicy.CanHandleWin1125H2(
+            actualTitle,
+            TitlePolicy.IncludeAggressiveTitles(options.skipAllNonSecurityKeyOptions, options.autoSubmitPinLength),
+            I18N.getStrings(I18N.Key.CHOOSE_A_PASSKEY),
+            I18N.getStrings(I18N.Key.SIGN_IN_WITH_A_PASSKEY));
 
     public override async Task handleWindow(string actualTitle, AutomationElement fidoEl, AutomationElement outerScrollViewer, bool isShiftDown) {
-        if (I18N.getStrings(I18N.Key.CHOOSE_A_PASSKEY).Contains(actualTitle, StringComparer.CurrentCulture)) {
+        if (Win1125H2ChallengePolicy.IsChooseAPasskeyTitle(actualTitle, I18N.getStrings(I18N.Key.CHOOSE_A_PASSKEY))) {
             if (await findAuthenticatorChoices(outerScrollViewer) is not { } authenticatorChoices) return;
 
             if (getSecurityKeyChoice(authenticatorChoices) is not { } desiredChoice) {
                 LOGGER.Debug("Desired choice not found, skipping");
+                options.state.Report(ChooserEventKind.DesiredChoiceMissing, "Desired choice not found, skipping");
                 return;
             }
 
             if (!shouldSkipSubmission(desiredChoice, authenticatorChoices, isShiftDown)) {
                 ((SelectionItemPattern) desiredChoice.GetCurrentPattern(SelectionItemPattern.Pattern)).Select();
                 LOGGER.Info("Choice selected {0:N3} sec after dialog appeared", options.overallStopwatch.Elapsed.TotalSeconds);
+                options.state.Report(ChooserEventKind.ChoseSecurityKey, "Security key selected");
             }
         } else {
-            /*
-             * The choice to use a non-TPM passkey was moved from the list to a separate link in 25H2.
-             * Here, the user wants to skip all non-security-key options, and this prompt is one of the authenticator challenges like entering a TPM PIN or plugging in a security key
-             */
+            if (!options.enabled) {
+                LOGGER.Info("Paused, not submitting dialog box");
+                options.state.Report(ChooserEventKind.Paused, "Paused, not submitting dialog box");
+                return;
+            }
+
+            if (isShiftDown) {
+                LOGGER.Info("Shift is pressed, not submitting dialog box");
+                options.state.Report(ChooserEventKind.ShiftHeld, "Shift is pressed, not submitting dialog box");
+                return;
+            }
+
             if (await outerScrollViewer.WaitForFirstAsync(TreeScope.Children, AUTHENTICATOR_NAME_CONDITION) is not { } authenticatorNameEl) {
                 LOGGER.Debug("Could not find name of the current authenticator while trying to skip a non-security-key option, ignoring dialog");
                 return;
             }
 
-            if (I18N.getStrings(I18N.Key.SECURITY_KEY).Contains(authenticatorNameEl.Current.Name, StringComparer.CurrentCulture)) {
-                if (options.autoSubmitPinLength >= MIN_PIN_LENGTH) {
+            Win1125H2ChallengeAction action = Win1125H2ChallengePolicy.DecideChallenge(
+                authenticatorNameEl.Current.Name,
+                I18N.getStrings(I18N.Key.SECURITY_KEY),
+                options.autoSubmitPinLength);
+
+            switch (action) {
+                case Win1125H2ChallengeAction.IgnoreMissingName:
+                    return;
+                case Win1125H2ChallengeAction.AutosubmitSecurityKeyPin:
                     autosubmitPin(fidoEl, outerScrollViewer);
-                } else {
+                    return;
+                case Win1125H2ChallengeAction.AlreadySecurityKey:
                     LOGGER.Debug("The current authenticator is already a security key, so there is nothing to do on this dialog");
-                }
-                return;
+                    return;
+                case Win1125H2ChallengeAction.InvokeChooseDifferentPasskey:
+                    break;
+                default:
+                    throw new InvalidOperationException($"Unhandled 25H2 challenge action {action}");
             }
 
             if (outerScrollViewer.FindFirst(TreeScope.Children, LINK_CONDITION) is not { } chooseADifferentPasskeyLink) {

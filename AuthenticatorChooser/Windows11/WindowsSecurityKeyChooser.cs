@@ -10,9 +10,6 @@ namespace AuthenticatorChooser.Windows11;
 public class WindowsSecurityKeyChooser(ChooserOptions options): AbstractSecurityKeyChooser<SystemWindow> {
 
     // #4: unfortunately, this class name is shared with the UAC prompt, detectable when desktop dimming is disabled
-    private const string WINDOW_CLASS_NAME  = "Credential Dialog Xaml Host";
-    private const string ALT_TAB_CLASS_NAME = "XamlExplorerHostIslandWindow";
-
     private static readonly Logger LOGGER = LogManager.GetLogger(typeof(WindowsSecurityKeyChooser).FullName!);
 
     private static readonly Condition TITLE_CONDITION = new PropertyCondition(AutomationElement.ClassNameProperty, "TextBlock");
@@ -25,7 +22,7 @@ public class WindowsSecurityKeyChooser(ChooserOptions options): AbstractSecurity
             if (!isFidoPromptWindow(fidoPrompt)) {
                 LOGGER.Trace("Window 0x{hwnd:x} is not a Windows Security window", fidoPrompt.HWnd);
                 return;
-            } else if (SystemWindow.ForegroundWindow.ClassName == ALT_TAB_CLASS_NAME) { // #8
+            } else if (FidoWindow.IsAltTabHeld(SystemWindow.ForegroundWindow.ClassName)) {
                 LOGGER.Debug("Alt+Tab is being held, not interacting with Windows Security window");
                 return;
             }
@@ -42,14 +39,16 @@ public class WindowsSecurityKeyChooser(ChooserOptions options): AbstractSecurity
             if (strategy == null) {
                 // Icon appears with neither AutomationElement.FindFirst nor Inspect's UIA Content or Control Views, only Raw View
                 string? captionIconAutomationId = TreeWalker.RawViewWalker.GetFirstChild(fidoEl).Current.AutomationId;
-                strategy = captionIconAutomationId switch {
-                    "WindowLogo"         => new Win1123H2Strategy(options),
-                    "WindowSecurityLogo" => new Win1125H2Strategy(options),
-                    _                    => null
+                strategy = CaptionIconMapper.FromAutomationId(captionIconAutomationId) switch {
+                    PromptFamily.Win1123H2 => new Win1123H2Strategy(options),
+                    PromptFamily.Win1125H2 => new Win1125H2Strategy(options),
+                    null => null,
+                    _ => throw new InvalidOperationException("Unhandled prompt family")
                 };
 
                 if (strategy == null) {
                     LOGGER.Error("Unsupported OS dialog version, Windows Security dialog box caption icon has unrecognized automation ID {id}", captionIconAutomationId);
+                    options.state.Report(ChooserEventKind.UnsupportedDialog, "Unsupported Windows Security dialog version");
                     return;
                 }
             }
@@ -79,10 +78,11 @@ public class WindowsSecurityKeyChooser(ChooserOptions options): AbstractSecurity
             LOGGER.Error(e, "UI Automation error while selecting security key, skipping this dialog box instance");
         } catch (Exception e) when (e is not OutOfMemoryException) {
             LOGGER.Error(e, "Uncaught exception while handling Windows Security dialog box, skipping it");
+            options.state.Report(ChooserEventKind.Error, "Error while handling a Windows Security dialog");
         }
     }
 
     // Window name and title are localized, so don't match against those
-    public override bool isFidoPromptWindow(SystemWindow window) => window.ClassName == WINDOW_CLASS_NAME;
+    public override bool isFidoPromptWindow(SystemWindow window) => FidoWindow.IsFidoPromptClass(window.ClassName);
 
 }

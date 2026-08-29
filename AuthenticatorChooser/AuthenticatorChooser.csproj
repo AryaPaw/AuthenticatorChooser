@@ -7,10 +7,11 @@
         <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <Version>0.5.1</Version>
-        <Authors>Ben Hutchison</Authors>
-        <Copyright>© 2026 $(Authors)</Copyright>
+        <Version>0.7.0</Version>
+        <Authors>AryaPaw</Authors>
+        <Copyright>© 2026 Ben Hutchison; fork © 2026 $(Authors)</Copyright>
         <Company>$(Authors)</Company>
+        <UseWindowsForms>true</UseWindowsForms>
         <RollForward>major</RollForward>
         <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
         <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -23,7 +24,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <Content Include="YubiKey.ico" />
+        <EmbeddedResource Include="YubiKey.ico" LogicalName="AuthenticatorChooser.YubiKey.ico" />
         <None Include="..\Readme.md;..\.github*\**" />
     </ItemGroup>
 
@@ -45,6 +46,10 @@
     <ItemGroup>
         <Compile Update="Resources\LocalizedStrings.Designer.cs" DesignTime="True" AutoGen="True" DependentUpon="LocalizedStrings.resx" />
         <EmbeddedResource Update="Resources\LocalizedStrings.resx" Generator="ResXFileCodeGenerator" LastGenOutput="LocalizedStrings.Designer.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="AuthenticatorChooser.Tests" />
     </ItemGroup>
 
     <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true' or '$(Configuration)' != 'Debug'">

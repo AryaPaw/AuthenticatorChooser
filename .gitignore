@@ -28,5 +28,7 @@ obj/
 _ReSharper*/
 [Tt]est[Rr]esult*
 .vs/
+coverage*.xml
+coverage*.json
 #Nuget packages folder
 packages/

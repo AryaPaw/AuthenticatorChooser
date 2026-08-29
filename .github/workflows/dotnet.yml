@@ -3,6 +3,8 @@ name: .NET
 on:
   push:
     branches: [ master ]
+    tags: [ 'v*' ]
+  pull_request:
   workflow_dispatch:
 
 jobs:
@@ -24,9 +26,15 @@ jobs:
 
     - name: Clone
       uses: actions/checkout@v6
-        
+
     - name: Restore
-      run: dotnet restore --locked-mode
+      run: |
+        dotnet restore ${{ env.ProjectName }} --locked-mode
+        dotnet restore AuthenticatorChooser.Tests
+
+    - name: Test
+      if: matrix.targetPlatform == 'win-x64'
+      run: dotnet test AuthenticatorChooser.Tests --configuration Release --no-restore /p:CollectCoverage=true
 
     - name: Build
       run: dotnet build ${{ env.ProjectName }} --no-restore --runtime ${{ matrix.targetPlatform }} --configuration Release --no-self-contained
@@ -40,3 +48,32 @@ jobs:
         name: ${{ env.ProjectName }}-${{ matrix.targetPlatform }}
         path: ${{ env.ProjectName }}/bin/Release/net8.0-windows/${{ matrix.targetPlatform }}/publish/*.exe
         if-no-files-found: error
+        retention-days: 90
+
+  release:
+    name: GitHub Release
+    needs: build
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - name: Download published executables
+      uses: actions/download-artifact@v8
+      with:
+        pattern: AuthenticatorChooser-*
+        path: dist
+
+    - name: Name binaries by runtime
+      run: |
+        mv dist/AuthenticatorChooser-win-x64/AuthenticatorChooser.exe dist/AuthenticatorChooser-win-x64.exe
+        mv dist/AuthenticatorChooser-win-arm64/AuthenticatorChooser.exe dist/AuthenticatorChooser-win-arm64.exe
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          dist/AuthenticatorChooser-win-x64.exe
+          dist/AuthenticatorChooser-win-arm64.exe
+        generate_release_notes: true
+        fail_on_unmatched_files: true

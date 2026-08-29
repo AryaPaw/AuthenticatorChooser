@@ -10,16 +10,19 @@ public interface WindowOpeningListener: IDisposable {
 
 public class WindowOpeningListenerImpl: WindowOpeningListener {
 
+    private readonly ShellHook shellHook;
+
     public event EventHandler<SystemWindow>? windowOpened;
 
-    private readonly ShellHook shellHook = new ShellHookImpl();
+    public WindowOpeningListenerImpl(): this(new ShellHookImpl()) { }
 
-    public WindowOpeningListenerImpl() {
+    public WindowOpeningListenerImpl(ShellHook shellHook) {
+        this.shellHook = shellHook;
         shellHook.shellEvent += onWindowOpened;
     }
 
     private void onWindowOpened(object? sender, ShellEventArgs args) {
-        if (args.shellEvent == ShellEventArgs.ShellEvent.HSHELL_WINDOWCREATED) {
+        if (ShellEventPolicy.IsWindowCreated(args.shellEvent)) {
             windowOpened?.Invoke(this, new SystemWindow(args.windowHandle));
         }
     }

@@ -2,8 +2,16 @@ using System.Diagnostics;
 
 namespace AuthenticatorChooser;
 
-public readonly record struct ChooserOptions(bool skipAllNonSecurityKeyOptions, int? autoSubmitPinLength) {
+public sealed class ChooserOptions(AppState state) {
+
+    public AppState state { get; } = state;
 
     public Stopwatch overallStopwatch { get; } = new();
+
+    public bool skipAllNonSecurityKeyOptions => state.SkipAllNonSecurityKeyOptions;
+
+    public int? autoSubmitPinLength => state.AutoSubmitPinLength;
+
+    public bool enabled => state.Enabled;
 
 }

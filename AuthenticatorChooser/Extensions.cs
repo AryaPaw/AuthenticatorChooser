@@ -4,11 +4,8 @@ namespace AuthenticatorChooser;
 
 public static class Extensions {
 
-    public static bool nameContainsAny(this AutomationElement element, IEnumerable<string> possibleSubstrings) {
-        string name = element.Current.Name;
-        // #2: in addition to a prefix, there is sometimes also a suffix after the substring
-        return possibleSubstrings.Any(possibleSubstring => name.Contains(possibleSubstring, StringComparison.CurrentCulture));
-    }
+    public static bool nameContainsAny(this AutomationElement element, IEnumerable<string> possibleSubstrings) =>
+        ChoiceMatchPolicy.NameContainsAny(element.Current.Name, possibleSubstrings);
 
     /// <summary>
     /// <para>Create an <see cref="AndCondition"/> or <see cref="OrCondition"/> for a <paramref name="property"/> from a series of <paramref name="values"/>, which have fewer than 2 items in it.</para>
