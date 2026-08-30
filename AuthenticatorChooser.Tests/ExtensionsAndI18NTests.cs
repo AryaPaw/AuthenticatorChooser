@@ -30,6 +30,8 @@ public sealed class ExtensionsAndI18NTests {
         string text = UsageText.Build("AuthenticatorChooser.exe", UsageText.DefaultLogPath);
         text.Should().Contain("tray");
         text.Should().Contain("AryaPaw");
+        text.Should().Contain("--show-window");
+        text.Should().Contain("scripts/run-local.ps1");
         UsageText.DefaultLogPath.Should().EndWith("AuthenticatorChooser.log");
     }
 

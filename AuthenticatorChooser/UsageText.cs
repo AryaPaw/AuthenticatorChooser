@@ -19,6 +19,9 @@ public static class UsageText {
         {processFilename} --log[=$filename]
             Runs this program in the background like the first example, and logs debug messages to a text file. If you don't specify $filename, it goes to {defaultLogPath}.
 
+        {processFilename} --show-window
+            Starts like the first example, but opens the status window immediately. Used by local preview (`scripts/run-local.ps1`).
+
         {processFilename} --help
             Shows this usage.
 
