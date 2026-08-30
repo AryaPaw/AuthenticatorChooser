@@ -301,6 +301,15 @@ public sealed class AppSession: IDisposable {
 
 internal static class AppVersion {
 
-    public static string Current => typeof(AppSession).Assembly.GetName().Version?.ToString(3) ?? "0.8.0";
+    public static string Current {
+        get {
+            Version? version = typeof(AppSession).Assembly.GetName().Version;
+            if (version is null) {
+                throw new InvalidOperationException("Assembly version is missing; set Version in AuthenticatorChooser.csproj");
+            }
+
+            return version.ToString(3);
+        }
+    }
 
 }

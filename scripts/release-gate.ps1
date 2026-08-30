@@ -44,12 +44,7 @@ if (-not $iscc) {
     Fail "ISCC.exe not found"
 }
 
-$csproj = Join-Path $RepoRoot "AuthenticatorChooser\AuthenticatorChooser.csproj"
-$csprojText = Get-Content $csproj -Raw
-if ($csprojText -notmatch '<Version>(\d+\.\d+\.\d+)</Version>') {
-    Fail "Version missing from AuthenticatorChooser.csproj"
-}
-$appVersion = $Matches[1]
+$appVersion = & (Join-Path $PSScriptRoot "Get-AppVersion.ps1")
 
 $iss = Join-Path $RepoRoot "installer\AuthenticatorChooser.iss"
 & $iscc $iss `

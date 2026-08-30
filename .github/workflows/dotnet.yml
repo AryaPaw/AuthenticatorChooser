@@ -45,15 +45,7 @@ jobs:
     - name: Read version from csproj
       shell: pwsh
       run: |
-        [xml]$proj = Get-Content AuthenticatorChooser/AuthenticatorChooser.csproj
-        $version = @(
-          $proj.Project.PropertyGroup |
-            ForEach-Object { $_.Version } |
-            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-        )[0]
-        if ([string]::IsNullOrWhiteSpace($version)) {
-          throw "AuthenticatorChooser.csproj is missing <Version>"
-        }
+        $version = & ./scripts/Get-AppVersion.ps1
         Add-Content -Path $env:GITHUB_ENV -Value "APP_VERSION=$version"
         Write-Host "APP_VERSION=$version"
 
