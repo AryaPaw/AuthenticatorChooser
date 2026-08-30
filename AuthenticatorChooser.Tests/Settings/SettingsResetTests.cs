@@ -35,6 +35,10 @@ public sealed class SettingsResetTests: IDisposable {
         state.Enabled.Should().BeTrue();
         state.SkipAllNonSecurityKeyOptions.Should().BeFalse();
         state.AutoSubmitPinLength.Should().BeNull();
+        state.PinMode.Should().Be(PinMode.Off);
+        state.PinCacheLifetime.Should().Be(PinCacheLifetime.TwoMinutes);
+        AuthenticatorPriorityCatalog.ActionFor(state.PriorityRules, AuthenticatorPriorityCatalog.UsbId)
+            .Should().Be(AuthenticatorRuleAction.Select);
         state.FileLogEnabled.Should().BeFalse();
         state.AutostartOnLogon.Should().BeTrue();
         state.TrayHintShown.Should().BeFalse();

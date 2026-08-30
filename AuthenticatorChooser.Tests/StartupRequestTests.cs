@@ -17,6 +17,12 @@ public sealed class StartupRequestTests {
     }
 
     [Fact]
+    public void ToLaunchRequest_MapsShowWindow() {
+        Startup.ToLaunchRequest(false, false, false, null, (false, null), false, true).ShowWindow.Should().BeTrue();
+        Startup.ToLaunchRequest(false, false, false, null, (false, null)).ShowWindow.Should().BeFalse();
+    }
+
+    [Fact]
     public void ToLaunchRequest_MapsUninstallCleanup() {
         Startup.ToLaunchRequest(false, false, false, null, (false, null), true).UninstallCleanup.Should().BeTrue();
     }

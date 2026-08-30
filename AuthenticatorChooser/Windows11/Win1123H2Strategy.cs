@@ -10,7 +10,7 @@ public class Win1123H2Strategy(ChooserOptions options): Win11Strategy(options) {
     public override bool canHandleTitle(string? actualTitle) =>
         TitlePolicy.CanHandleWin1123H2(
             actualTitle,
-            TitlePolicy.IncludeAggressiveTitles(options.skipAllNonSecurityKeyOptions, options.autoSubmitPinLength),
+            options.wantsAggressiveTitles,
             I18N.getStrings(I18N.Key.SIGN_IN_WITH_YOUR_PASSKEY),
             I18N.getStrings(I18N.Key.MAKING_SURE_ITS_YOU));
 
@@ -28,7 +28,8 @@ public class Win1123H2Strategy(ChooserOptions options): Win11Strategy(options) {
          */
         Task<IReadOnlyCollection<AutomationElement>?> authenticatorChoicesTask = findAuthenticatorChoices(outerScrollViewer, stopFinding.Token);
 
-        Task<AutomationElement?> pinFieldTask = options.autoSubmitPinLength >= MIN_PIN_LENGTH && I18N.getStrings(I18N.Key.MAKING_SURE_ITS_YOU).Contains(actualTitle, StringComparer.CurrentCulture)
+        Task<AutomationElement?> pinFieldTask = PinFillPolicy.WantsPinDialog(options.pinMode, options.autoSubmitPinLength)
+            && I18N.getStrings(I18N.Key.MAKING_SURE_ITS_YOU).Contains(actualTitle, StringComparer.CurrentCulture)
             ? findPinField(outerScrollViewer, stopFinding.Token) : new TaskCompletionSource<AutomationElement?>().Task;
 
         await Task.WhenAny(authenticatorChoicesTask, pinFieldTask);
@@ -37,7 +38,7 @@ public class Win1123H2Strategy(ChooserOptions options): Win11Strategy(options) {
         if (pinFieldTask.IsCompletedSuccessfully) {
             if (pinFieldTask.Result is { } pinField) {
                 LOGGER.Debug("Found PIN field");
-                autosubmitPin(fidoEl, outerScrollViewer, pinField);
+                handlePinPrompt(fidoEl, outerScrollViewer, pinField);
             }
             return;
         }
@@ -47,9 +48,16 @@ public class Win1123H2Strategy(ChooserOptions options): Win11Strategy(options) {
         }
 
         AutomationElement? desiredChoice = getSecurityKeyChoice(authenticatorChoices);
-        bool securityKeyFound = desiredChoice != null;
+        AuthenticatorDecision priority = DecideVisible(authenticatorChoices);
+        if (priority.Kind == AuthenticatorDecisionKind.Select && priority.Choice?.Id is AutomationElement selected) {
+            desiredChoice = selected;
+        }
+
+        bool securityKeyFound = getSecurityKeyChoice(authenticatorChoices) != null;
+        bool skipHello = options.skipAllNonSecurityKeyOptions
+            || AuthenticatorPriorityCatalog.ActionFor(options.priorityRules, AuthenticatorPriorityCatalog.WindowsHelloId) == AuthenticatorRuleAction.Ignore;
         AutomationElement? useAnother = null;
-        if (desiredChoice == null && options.skipAllNonSecurityKeyOptions) {
+        if (desiredChoice == null && skipHello) {
             useAnother = authenticatorChoices.FirstOrDefault(choice => choice.nameContainsAny(I18N.getStrings(I18N.Key.USE_ANOTHER_DEVICE)));
             desiredChoice = useAnother;
         }
@@ -64,7 +72,7 @@ public class Win1123H2Strategy(ChooserOptions options): Win11Strategy(options) {
         Win1123H2ListDecision decision = Win1123H2ListPolicy.Decide(
             securityKeyFound,
             useAnother != null,
-            options.skipAllNonSecurityKeyOptions,
+            skipHello,
             isShiftDown,
             skipReason);
 

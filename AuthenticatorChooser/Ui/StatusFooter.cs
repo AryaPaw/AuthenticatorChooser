@@ -10,10 +10,11 @@ internal sealed class StatusFooter: TableLayoutPanel {
     public StatusFooter() {
         Dock = DockStyle.Fill;
         AutoSize = true;
+        AccessibleName = "statusFooter";
         ColumnCount = 1;
         RowCount = 3;
         BackColor = UiTheme.Brand50;
-        Padding = new Padding(UiTheme.PagePad, 14, UiTheme.PagePad, 16);
+        Padding = new Padding(UiTheme.PagePad, 16, UiTheme.PagePad, 18);
         ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         RowStyles.Add(new RowStyle(SizeType.AutoSize));
         RowStyles.Add(new RowStyle(SizeType.AutoSize));

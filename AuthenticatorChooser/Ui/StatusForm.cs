@@ -12,23 +12,29 @@ public sealed class StatusForm: Form {
     private readonly string allowedRoot;
     private readonly TrayIcon trayIcon;
     private readonly Action exit;
+    private readonly IPinCache pinCache;
+    private readonly bool ownsPinCache;
     private readonly List<Label> wrappingLabels = [];
     private readonly Icon windowIcon;
     private TableLayoutPanel shell = null!;
     private StatusBadge statusBadge = null!;
     private Label eventValue = null!;
-    private CheckBox skipAllBox = null!;
     private CheckBox autostartBox = null!;
     private CheckBox logBox = null!;
     private CheckBox autoUpdateBox = null!;
     private StatusPinBlock pinBlock = null!;
+    private Label prioritySummary = null!;
     private StatusFooter footer = null!;
     private ThemedButton pauseButton = null!;
+    private ThemedButton fidoTab = null!;
+    private ThemedButton computerTab = null!;
+    private Panel fidoPage = null!;
+    private Panel computerPage = null!;
     private bool forceClose;
     private bool syncing;
     private bool allowShow;
 
-    public StatusForm(AppState state, IAutostartService autostart, string executablePath, string settingsPath, string allowedRoot, TrayIcon trayIcon, Action exit) {
+    public StatusForm(AppState state, IAutostartService autostart, string executablePath, string settingsPath, string allowedRoot, TrayIcon trayIcon, Action exit, IPinCache? pinCache = null) {
         this.state = state;
         this.autostart = autostart;
         this.executablePath = executablePath;
@@ -36,6 +42,9 @@ public sealed class StatusForm: Form {
         this.allowedRoot = allowedRoot;
         this.trayIcon = trayIcon;
         this.exit = exit;
+        ownsPinCache = pinCache is null;
+        this.pinCache = pinCache ?? new PinCache();
+        this.pinCache.Lifetime = state.PinCacheLifetime;
         windowIcon = AppIcons.CreateKeyIcon();
 
         Text = nameof(AuthenticatorChooser);
@@ -47,7 +56,7 @@ public sealed class StatusForm: Form {
         MaximizeBox = false;
         MinimizeBox = true;
         StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = new Size(640, 700);
+        MinimumSize = new Size(740, 880);
         AutoScaleMode = AutoScaleMode.Dpi;
         AutoScaleDimensions = new SizeF(96F, 96F);
         ShowInTaskbar = false;
@@ -56,29 +65,34 @@ public sealed class StatusForm: Form {
         shell = new TableLayoutPanel {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 4,
+            RowCount = 3,
             BackColor = UiTheme.Surface,
             Padding = Padding.Empty
         };
         shell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         shell.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        shell.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        shell.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        shell.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
         shell.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         shell.Controls.Add(BuildHeader(), 0, 0);
-        shell.Controls.Add(BuildActions(), 0, 1);
-        shell.Controls.Add(BuildBody(), 0, 2);
+        shell.Controls.Add(BuildBody(), 0, 1);
         footer = new StatusFooter();
-        shell.Controls.Add(footer, 0, 3);
+        shell.Controls.Add(footer, 0, 2);
         Controls.Add(shell);
 
-        Load += (_, _) => FitToContent();
+        Load += (_, _) => ApplyWrapWidths();
         Resize += (_, _) => ApplyWrapWidths();
         state.Changed += OnStateChanged;
         BindFromState();
         FormClosing += OnFormClosing;
-        ClientSize = new Size(700, 720);
+        ClientSize = PreferredClientSize();
+    }
+
+    private static Size PreferredClientSize() {
+        Rectangle work = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1920, 1080);
+        int width = Math.Min(800, Math.Max(720, work.Width - 72));
+        int height = Math.Min(1040, Math.Max(860, work.Height - 72));
+        return new Size(width, height);
     }
 
     public void Reveal() {
@@ -88,7 +102,7 @@ public sealed class StatusForm: Form {
         Show();
         WindowState = FormWindowState.Normal;
         Activate();
-        FitToContent();
+        ApplyWrapWidths();
     }
 
     protected override void SetVisibleCore(bool value) {
@@ -98,6 +112,9 @@ public sealed class StatusForm: Form {
     protected override void Dispose(bool disposing) {
         if (disposing) {
             state.Changed -= OnStateChanged;
+            if (ownsPinCache) {
+                pinCache.Dispose();
+            }
         }
 
         base.Dispose(disposing);
@@ -109,22 +126,23 @@ public sealed class StatusForm: Form {
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             BackColor = UiTheme.Brand950,
-            Padding = new Padding(UiTheme.PagePad, 18, UiTheme.PagePad, 18),
+            Padding = new Padding(UiTheme.PagePad, 20, UiTheme.PagePad, 20),
             ColumnCount = 2,
             RowCount = 3
         };
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 64F));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 60F));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         header.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         header.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         header.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         PictureBox icon = new() {
-            Size = new Size(48, 48),
+            Size = new Size(40, 40),
             SizeMode = PictureBoxSizeMode.Zoom,
             Image = windowIcon.ToBitmap(),
             BackColor = Color.Transparent,
-            Margin = new Padding(0, 4, 12, 0)
+            Margin = new Padding(0, 4, 16, 0),
+            Anchor = AnchorStyles.Left | AnchorStyles.Top
         };
         header.SetRowSpan(icon, 3);
         header.Controls.Add(icon, 0, 0);
@@ -152,10 +170,21 @@ public sealed class StatusForm: Form {
         header.Controls.Add(titleRow, 1, 0);
 
         Label subtitle = Wrap(AppCredits.ProductSubtitle, UiTheme.Body, UiTheme.OnHeaderMuted, Color.Transparent);
-        subtitle.Margin = new Padding(0, 0, 0, 10);
+        subtitle.Margin = new Padding(0, 0, 0, 14);
         header.Controls.Add(subtitle, 1, 1);
 
-        FlowLayoutPanel statusRow = new() {
+        TableLayoutPanel statusRow = new() {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            ColumnCount = 2,
+            RowCount = 1,
+            BackColor = Color.Transparent,
+            Margin = Padding.Empty
+        };
+        statusRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        statusRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+
+        FlowLayoutPanel statusLeft = new() {
             Dock = DockStyle.Fill,
             AutoSize = true,
             FlowDirection = FlowDirection.LeftToRight,
@@ -166,68 +195,118 @@ public sealed class StatusForm: Form {
         };
         statusBadge = new StatusBadge();
         eventValue = Wrap("", UiTheme.Caption, UiTheme.OnHeaderMuted, Color.Transparent);
-        eventValue.Margin = new Padding(0, 6, 0, 0);
-        statusRow.Controls.Add(statusBadge);
-        statusRow.Controls.Add(eventValue);
-        header.Controls.Add(statusRow, 1, 2);
-        return header;
-    }
+        eventValue.Margin = new Padding(0, 6, 8, 0);
+        statusLeft.Controls.Add(statusBadge);
+        statusLeft.Controls.Add(eventValue);
 
-    private Panel BuildActions() {
-        FlowLayoutPanel actions = new() {
-            Dock = DockStyle.Fill,
+        FlowLayoutPanel headerActions = new() {
             AutoSize = true,
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
-            Padding = new Padding(UiTheme.PagePad, 16, UiTheme.PagePad, 8),
-            BackColor = UiTheme.Surface
+            BackColor = Color.Transparent,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty,
+            Anchor = AnchorStyles.Right | AnchorStyles.Top
         };
-        pauseButton = new ThemedButton("Pause", true) { AccessibleName = "pauseToggle" };
-        ThemedButton quit = new("Exit", false);
-        pauseButton.Click += (_, _) => StatusPresenter.ToggleEnabled(state);
+        pauseButton = new ThemedButton("Pause", false) { AccessibleName = "pauseToggle", Margin = new Padding(0, 0, 8, 0) };
+        ThemedButton quit = new("Exit", false) { Margin = Padding.Empty };
+        pauseButton.Click += (_, _) => {
+            StatusPresenter.ToggleEnabled(state);
+            if (!state.Enabled) {
+                pinCache.Clear();
+            }
+        };
         quit.Click += (_, _) => {
             forceClose = true;
             exit();
         };
-        actions.Controls.AddRange([pauseButton, quit]);
-        return actions;
+        headerActions.Controls.AddRange([pauseButton, quit]);
+        statusRow.Controls.Add(statusLeft, 0, 0);
+        statusRow.Controls.Add(headerActions, 1, 0);
+        header.Controls.Add(statusRow, 1, 2);
+        return header;
     }
 
-    private Panel BuildBody() {
-        TableLayoutPanel host = new() {
+    private Control BuildBody() {
+        TableLayoutPanel body = new() {
             Dock = DockStyle.Fill,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 1,
             RowCount = 2,
-            Padding = new Padding(UiTheme.PagePad, 4, UiTheme.PagePad, 8),
-            BackColor = UiTheme.Surface
+            BackColor = UiTheme.Surface,
+            Padding = Padding.Empty,
+            AccessibleName = "statusTabs"
         };
-        host.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        host.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        host.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        body.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        body.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-        CardPanel fido = new() { Dock = DockStyle.Fill, AutoSize = true };
+        fidoTab = new ThemedButton("FIDO", true) { AccessibleName = "fidoTab" };
+        computerTab = new ThemedButton("This computer", false) { AccessibleName = "computerTab" };
+        fidoTab.Click += (_, _) => ShowTab(true);
+        computerTab.Click += (_, _) => ShowTab(false);
+        SegmentTrack tabs = new(fidoTab, computerTab) {
+            Dock = DockStyle.Fill,
+            Margin = new Padding(UiTheme.PagePad, 16, UiTheme.PagePad, 12)
+        };
+
+        Panel host = new() {
+            Dock = DockStyle.Fill,
+            BackColor = UiTheme.Surface,
+            Padding = new Padding(UiTheme.PagePad, 0, UiTheme.PagePad, 8)
+        };
+        fidoPage = BuildFidoPage();
+        computerPage = BuildComputerPage();
+        computerPage.Visible = false;
+        host.Controls.Add(computerPage);
+        host.Controls.Add(fidoPage);
+
+        body.Controls.Add(tabs, 0, 0);
+        body.Controls.Add(host, 0, 1);
+        return body;
+    }
+
+    private void ShowTab(bool fido) {
+        fidoTab.Primary = fido;
+        computerTab.Primary = !fido;
+        fidoPage.Visible = fido;
+        computerPage.Visible = !fido;
+        if (fido) {
+            fidoPage.BringToFront();
+        } else {
+            computerPage.BringToFront();
+        }
+    }
+
+    private Panel BuildFidoPage() {
+        Panel scroll = ScrollPage("fidoScroll");
+        CardPanel fido = new() { Dock = DockStyle.Top, AutoSize = true };
         TableLayoutPanel fidoStack = Stack();
-        Add(fidoStack, Heading("FIDO prompts"), 12);
-        skipAllBox = CreateCheck("Always choose the USB security key");
-        skipAllBox.AccessibleName = "skipAllOptions";
-        skipAllBox.CheckedChanged += (_, _) => {
-            if (syncing) {
-                return;
-            }
-
-            state.SkipAllNonSecurityKeyOptions = skipAllBox.Checked;
-            Persist();
+        Add(fidoStack, Heading("Authenticator priority"), 8);
+        prioritySummary = Wrap(AuthenticatorPriorityCatalog.Summary(state.PriorityRules), UiTheme.BodyBold, UiTheme.Ink, UiTheme.Card);
+        prioritySummary.AccessibleName = "prioritySummary";
+        Add(fidoStack, prioritySummary, 6);
+        Add(fidoStack, Wrap("Unknown authenticators stay on Ask and stop automatic clicks. Learned names are added only after they appear in a real FIDO prompt.", UiTheme.Caption, UiTheme.Muted, UiTheme.Card), 12);
+        ThemedButton manage = new("Manage priorities", false) { AccessibleName = "managePriorities" };
+        manage.Click += (_, _) => EditPriorities();
+        Add(fidoStack, manage, 16);
+        Panel rule = new() {
+            Size = new Size(100, 1),
+            Dock = DockStyle.Fill,
+            Margin = new Padding(0, 4, 0, 16),
+            BackColor = UiTheme.Border
         };
-        Add(fidoStack, skipAllBox, 6);
-        Add(fidoStack, Wrap("When this is off, the Security Key is chosen only if the other option is pairing a new phone. When it is on, Windows Hello and a paired phone are skipped too.", UiTheme.Caption, UiTheme.Muted, UiTheme.Card), 16);
-        Add(fidoStack, Heading("Autosubmit security-key PIN"), 8);
-        pinBlock = new StatusPinBlock(state, Persist);
+        Add(fidoStack, rule, 0);
+        Add(fidoStack, Heading("Security-key PIN"), 8);
+        pinBlock = new StatusPinBlock(state, pinCache, Persist);
         Add(fidoStack, pinBlock, 0);
         fido.Controls.Add(fidoStack);
+        scroll.Controls.Add(fido);
+        return scroll;
+    }
 
-        CardPanel app = new() { Dock = DockStyle.Fill, AutoSize = true };
+    private Panel BuildComputerPage() {
+        Panel scroll = ScrollPage("computerScroll");
+        CardPanel app = new() { Dock = DockStyle.Top, AutoSize = true };
         TableLayoutPanel appStack = Stack();
         Add(appStack, Heading("This computer"), 12);
         autostartBox = CreateCheck("Start in the background when I sign in to Windows");
@@ -274,7 +353,7 @@ public sealed class StatusForm: Form {
             Persist();
         };
         Add(appStack, autoUpdateBox, 6);
-        Add(appStack, Wrap("When a newer GitHub Release exists, the installer is downloaded and applied in the background. No notifications.", UiTheme.Caption, UiTheme.Muted, UiTheme.Card), 12);
+        Add(appStack, Wrap("When a newer GitHub Release exists, the installer is downloaded and applied in the background. No notifications.", UiTheme.Caption, UiTheme.Muted, UiTheme.Card), 16);
         FlowLayoutPanel appButtons = new() {
             AutoSize = true,
             FlowDirection = FlowDirection.LeftToRight,
@@ -292,19 +371,29 @@ public sealed class StatusForm: Form {
                 MessageBox.Show(this, $"Log file not found yet:\n{logPath}", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         };
-        ThemedButton reset = new("Reset settings", false);
-        reset.AccessibleName = "resetSettings";
-        reset.MinimumSize = new Size(168, 40);
-        reset.MaximumSize = new Size(168, 40);
-        reset.Size = new Size(168, 40);
+        ThemedButton reset = new("Reset settings", false) { AccessibleName = "resetSettings" };
         reset.Click += (_, _) => ResetSettings();
         appButtons.Controls.AddRange([openLog, reset]);
         Add(appStack, appButtons, 0);
         app.Controls.Add(appStack);
+        scroll.Controls.Add(app);
+        return scroll;
+    }
 
-        host.Controls.Add(fido, 0, 0);
-        host.Controls.Add(app, 0, 1);
-        return host;
+    private static Panel ScrollPage(string accessibleName) {
+        Panel scroll = new() {
+            Dock = DockStyle.Fill,
+            AutoScroll = true,
+            BackColor = UiTheme.Surface,
+            Padding = Padding.Empty,
+            AccessibleName = accessibleName
+        };
+        scroll.Layout += (_, _) => {
+            scroll.HorizontalScroll.Maximum = 0;
+            scroll.HorizontalScroll.Enabled = false;
+            scroll.HorizontalScroll.Visible = false;
+        };
+        return scroll;
     }
 
     private static TableLayoutPanel Stack() {
@@ -364,7 +453,7 @@ public sealed class StatusForm: Form {
         };
 
     private void ApplyWrapWidths() {
-        int width = Math.Max(280, ClientSize.Width - (UiTheme.PagePad * 2) - 56);
+        int width = Math.Max(280, ClientSize.Width - (UiTheme.PagePad * 2) - 80);
         foreach (Label label in wrappingLabels) {
             label.MaximumSize = new Size(width, 0);
         }
@@ -373,14 +462,7 @@ public sealed class StatusForm: Form {
         footer.ApplyWrapWidth(width);
     }
 
-    private void FitToContent() {
-        ApplyWrapWidths();
-        PerformLayout();
-        Size preferred = shell.GetPreferredSize(new Size(ClientSize.Width, 0));
-        int width = Math.Max(MinimumSize.Width, 700);
-        int height = Math.Max(MinimumSize.Height, preferred.Height + 36);
-        ClientSize = new Size(width, height);
-    }
+    internal int FooterTop => footer.Top;
 
     private void OnStateChanged(object? sender, EventArgs e) {
         if (IsHandleCreated && InvokeRequired) {
@@ -396,11 +478,14 @@ public sealed class StatusForm: Form {
         statusBadge.ShowRunning(state.Enabled);
         eventValue.Text = StatusPresenter.EventLabel(state.LastEvent, state.LastEventDetail);
         pauseButton.Text = StatusPresenter.PauseActionLabel(state.Enabled);
-        skipAllBox.Checked = state.SkipAllNonSecurityKeyOptions;
         autostartBox.Checked = state.AutostartOnLogon;
         logBox.Checked = state.FileLogEnabled;
         autoUpdateBox.Checked = state.AutoUpdateEnabled;
+        prioritySummary.Text = AuthenticatorPriorityCatalog.Summary(state.PriorityRules);
         pinBlock.BindFromState();
+        if (!state.Enabled) {
+            pinCache.Clear();
+        }
         syncing = false;
     }
 
@@ -440,7 +525,7 @@ public sealed class StatusForm: Form {
             VisitedLinkColor = UiTheme.OnHeaderMuted,
             LinkBehavior = LinkBehavior.HoverUnderline,
             BackColor = Color.Transparent,
-            Margin = new Padding(12, 8, 0, 0),
+            Margin = new Padding(0, 2, 0, 0),
             Anchor = AnchorStyles.Top | AnchorStyles.Right,
             AccessibleName = "versionReleases"
         };
@@ -451,7 +536,7 @@ public sealed class StatusForm: Form {
     private void ResetSettings() {
         DialogResult answer = MessageBox.Show(
             this,
-            "Reset all options to their defaults? Autostart, PIN autosubmit, logging, and silent updates will return to factory values.",
+            "Reset all options to their defaults? Autostart, PIN mode, priorities, logging, and silent updates will return to factory values.",
             Text,
             MessageBoxButtons.YesNo,
             MessageBoxIcon.Question,
@@ -460,9 +545,22 @@ public sealed class StatusForm: Form {
             return;
         }
 
+        pinCache.Clear();
         if (!SettingsReset.TryApply(state, autostart, executablePath, settingsPath, allowedRoot)) {
             MessageBox.Show(this, "Settings were reset, but the logon scheduled task could not be updated.", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
+    }
+
+    private void EditPriorities() {
+        using AuthenticatorPriorityForm dialog = new(state.PriorityRules);
+        if (dialog.ShowDialog(this) != DialogResult.OK) {
+            return;
+        }
+
+        state.PriorityRules = dialog.Result;
+        state.SkipAllNonSecurityKeyOptions = false;
+        prioritySummary.Text = AuthenticatorPriorityCatalog.Summary(state.PriorityRules);
+        Persist();
     }
 
     private void OnFormClosing(object? sender, FormClosingEventArgs e) {

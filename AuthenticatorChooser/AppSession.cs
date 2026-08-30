@@ -48,6 +48,8 @@ public sealed class LaunchRequest {
 
     public bool UninstallCleanup { get; init; }
 
+    public bool ShowWindow { get; init; }
+
     public CliOverrides Cli { get; init; }
 
 }
@@ -172,17 +174,29 @@ public sealed class AppSession: IDisposable {
             return preparation.ExitCode;
         }
 
-        return RunUi(preparation.State);
+        return RunUi(preparation.State, request.ShowWindow);
     }
 
-    private int RunUi(AppState state) {
+    private int RunUi(AppState state, bool showWindow) {
         Logger logger = LogManager.GetLogger(typeof(AppSession).FullName!);
         logger.Info("{name} {version} starting", ProgramName, AppVersion.Current);
             OsVersion os = OsVersion.getCurrent();
             logger.Info("Operating system is {name} {marketingVersion} {version} {arch}", os.name, os.marketingVersion, os.version, os.architecture);
             logger.Info("{Locales are} {locales}", I18N.LOCALE_NAMES.Count == 1 ? "Locale is" : "Locales are", string.Join(", ", I18N.LOCALE_NAMES));
 
-            ChooserOptions options = new(state);
+            using PinCache pinCache = new();
+            pinCache.Lifetime = state.PinCacheLifetime;
+            ChooserOptions options = new(
+                state,
+                pinCache,
+                WindowTrust.Shared,
+                NativeUia.Shared,
+                new Fido2Devices(),
+                new NativeDebuggerProbe(),
+                () => {
+                    SettingsStore.EnsurePathAllowed(settingsPath(), allowedRoot());
+                    SettingsStore.Save(settingsPath(), state.ToSettings());
+                });
             using WindowOpeningListener windowOpeningListener = new WindowOpeningListenerImpl();
             WindowsSecurityKeyChooser securityKeyChooser = new(options);
 
@@ -196,7 +210,7 @@ public sealed class AppSession: IDisposable {
             state.Report(ChooserEventKind.Waiting, "Waiting for Windows Security FIDO dialog boxes");
 
             using TrayIcon trayIcon = new(state, () => { }, () => { });
-            StatusForm form = new(state, autostart, processPath(), settingsPath(), allowedRoot(), trayIcon, ExitApp);
+            StatusForm form = new(state, autostart, processPath(), settingsPath(), allowedRoot(), trayIcon, ExitApp, pinCache);
             trayIcon.AttachWindowActions(form.Reveal, ExitApp);
             _ = form.Handle;
             if (!state.TrayHintShown) {
@@ -215,6 +229,8 @@ public sealed class AppSession: IDisposable {
             };
 
             SystemEvents.SessionEnding += onWindowsLogoff;
+            SystemEvents.SessionSwitch += onSessionSwitch;
+            SystemEvents.PowerModeChanged += onPowerModeChanged;
             singleInstance.WatchShowWindow(() => {
                 if (form.IsDisposed) {
                     return;
@@ -228,8 +244,19 @@ public sealed class AppSession: IDisposable {
                 form.HandleCreated += (_, _) => form.BeginInvoke(form.Reveal);
             });
 
-            uiLoop.Run(form);
-            SystemEvents.SessionEnding -= onWindowsLogoff;
+            try {
+                if (showWindow) {
+                    form.Reveal();
+                }
+
+                uiLoop.Run(form);
+            } finally {
+                SystemEvents.SessionEnding -= onWindowsLogoff;
+                SystemEvents.SessionSwitch -= onSessionSwitch;
+                SystemEvents.PowerModeChanged -= onPowerModeChanged;
+                pinCache.Clear();
+            }
+
             return 0;
 
         void ExitFromBackground() {
@@ -249,7 +276,20 @@ public sealed class AppSession: IDisposable {
         void onWindowsLogoff(object sender, SessionEndingEventArgs args) {
             logger.Info("Exiting due to Windows session ending for {0}", args.Reason);
             SystemEvents.SessionEnding -= onWindowsLogoff;
+            pinCache.Clear();
             ExitApp();
+        }
+
+        void onSessionSwitch(object sender, SessionSwitchEventArgs args) {
+            if (args.Reason is SessionSwitchReason.SessionLock or SessionSwitchReason.SessionLogoff or SessionSwitchReason.RemoteDisconnect) {
+                pinCache.Clear();
+            }
+        }
+
+        void onPowerModeChanged(object sender, PowerModeChangedEventArgs args) {
+            if (args.Mode is PowerModes.Suspend) {
+                pinCache.Clear();
+            }
         }
     }
 
@@ -259,6 +299,6 @@ public sealed class AppSession: IDisposable {
 
 internal static class AppVersion {
 
-    public static string Current => typeof(AppSession).Assembly.GetName().Version?.ToString(3) ?? "0.7.0";
+    public static string Current => typeof(AppSession).Assembly.GetName().Version?.ToString(3) ?? "0.8.0";
 
 }

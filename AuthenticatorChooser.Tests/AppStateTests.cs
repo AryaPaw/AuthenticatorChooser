@@ -30,6 +30,8 @@ public sealed class AppStateTests {
         round.AutoUpdateEnabled.Should().BeFalse();
         round.LastUpdateCheckUtc.Should().Be(settings.LastUpdateCheckUtc);
         round.SchemaVersion.Should().Be(AppSettings.CurrentSchema);
+        round.PinMode.Should().Be(PinMode.Off);
+        round.PriorityRules.Should().HaveCount(3);
     }
 
     [Fact]
@@ -61,6 +63,16 @@ public sealed class AppStateTests {
         options.skipAllNonSecurityKeyOptions.Should().BeTrue();
         state.AutoSubmitPinLength = 6;
         options.autoSubmitPinLength.Should().Be(6);
+        options.skipAllNonSecurityKeyOptions.Should().BeTrue();
+        options.wantsAggressiveTitles.Should().BeTrue();
+        state.SkipAllNonSecurityKeyOptions = false;
+        state.PinMode = PinMode.Off;
+        options.pinMode.Should().Be(PinMode.Off);
+        options.wantsAggressiveTitles.Should().BeFalse();
+        state.PinMode = PinMode.Cache;
+        options.pinMode.Should().Be(PinMode.Cache);
+        options.priorityRules.Should().HaveCount(3);
+        options.wantsAggressiveTitles.Should().BeTrue();
     }
 
     [Fact]

@@ -6,6 +6,9 @@ public sealed class AppState {
     private bool enabled = true;
     private bool skipAllNonSecurityKeyOptions;
     private int? autoSubmitPinLength;
+    private PinMode pinMode = PinMode.Off;
+    private PinCacheLifetime pinCacheLifetime = PinCacheLifetime.TwoMinutes;
+    private List<AuthenticatorPriorityRule> priorityRules = AuthenticatorPriorityCatalog.CreateDefaults().Select(rule => rule.Clone()).ToList();
     private bool fileLogEnabled;
     private string? logFilename;
     private bool autostartOnLogon = true;
@@ -43,6 +46,40 @@ public sealed class AppState {
             }
         }
         set => Set(ref autoSubmitPinLength, PinPolicy.Normalize(value));
+    }
+
+    public PinMode PinMode {
+        get {
+            lock (gate) {
+                return pinMode;
+            }
+        }
+        set => Set(ref pinMode, value);
+    }
+
+    public PinCacheLifetime PinCacheLifetime {
+        get {
+            lock (gate) {
+                return pinCacheLifetime;
+            }
+        }
+        set => Set(ref pinCacheLifetime, value);
+    }
+
+    public IReadOnlyList<AuthenticatorPriorityRule> PriorityRules {
+        get {
+            lock (gate) {
+                return AuthenticatorPriorityCatalog.Clone(priorityRules);
+            }
+        }
+        set {
+            List<AuthenticatorPriorityRule> next = AuthenticatorPriorityCatalog.EnsureBuiltIns(value);
+            lock (gate) {
+                priorityRules = next;
+            }
+
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     public bool FileLogEnabled {
@@ -126,6 +163,9 @@ public sealed class AppState {
             enabled = settings.Enabled;
             skipAllNonSecurityKeyOptions = settings.SkipAllNonSecurityKeyOptions;
             autoSubmitPinLength = PinPolicy.Normalize(settings.AutoSubmitPinLength == 0 ? null : settings.AutoSubmitPinLength);
+            pinMode = settings.PinMode;
+            pinCacheLifetime = settings.PinCacheLifetime;
+            priorityRules = AuthenticatorPriorityCatalog.EnsureBuiltIns(settings.PriorityRules);
             fileLogEnabled = settings.FileLogEnabled;
             logFilename = Logging.TryNormalizeLogFileName(settings.LogFilename);
             autostartOnLogon = settings.AutostartOnLogon;
@@ -145,6 +185,9 @@ public sealed class AppState {
                 Enabled = enabled,
                 SkipAllNonSecurityKeyOptions = skipAllNonSecurityKeyOptions,
                 AutoSubmitPinLength = autoSubmitPinLength ?? 0,
+                PinMode = pinMode,
+                PinCacheLifetime = pinCacheLifetime,
+                PriorityRules = AuthenticatorPriorityCatalog.Clone(priorityRules),
                 FileLogEnabled = fileLogEnabled,
                 LogFilename = logFilename,
                 AutostartOnLogon = autostartOnLogon,

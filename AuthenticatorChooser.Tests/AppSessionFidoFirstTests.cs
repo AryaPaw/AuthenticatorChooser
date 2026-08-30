@@ -15,6 +15,9 @@ public sealed class AppSessionFidoFirstTests {
         src.IndexOf("WindowOpeningListener", StringComparison.Ordinal).Should().BePositive();
         src.IndexOf("SilentUpdateRuntime.Start", StringComparison.Ordinal)
             .Should().BeGreaterThan(src.IndexOf("WindowOpeningListener", StringComparison.Ordinal));
+        src.Should().Contain("SessionSwitch");
+        src.Should().Contain("PowerModeChanged");
+        src.Should().Contain("pinCache.Clear()");
     }
 
 }

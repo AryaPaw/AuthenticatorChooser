@@ -85,6 +85,7 @@ public sealed class UiAutomationAndDesktopTests: IDisposable {
                 box.Checked = !box.Checked;
             }
 
+            Flatten(form).OfType<RadioButton>().Single(r => r.AccessibleName == "pinModeLength").Checked = true;
             TextBox pin = Flatten(form).OfType<TextBox>().Single(t => t.AccessibleName == "pinSample");
             Button toggle = Flatten(form).OfType<Button>().Single(b => b.AccessibleName == "pinToggle");
             toggle.Text.Should().Be("Turn on");
@@ -94,6 +95,7 @@ public sealed class UiAutomationAndDesktopTests: IDisposable {
             pin.Enabled.Should().BeFalse();
             toggle.Text.Should().Be("Turn off");
             state.AutoSubmitPinLength.Should().Be(6);
+            state.PinMode.Should().Be(PinMode.Length);
             File.ReadAllText(settings).Should().NotContain("123456");
             form.TurnOffPinAutosubmit();
             toggle.Text.Should().Be("Turn on");
@@ -107,7 +109,28 @@ public sealed class UiAutomationAndDesktopTests: IDisposable {
             Flatten(form).OfType<LinkLabel>().Should().Contain(l => l.AccessibleName == "versionReleases" && l.Text.Contains("Version"));
             Flatten(form).OfType<CheckBox>().Should().Contain(c => c.AccessibleName == "autoUpdateEnabled");
             Flatten(form).OfType<Button>().Should().Contain(b => b.AccessibleName == "resetSettings");
-            form.ClientSize.Height.Should().BeGreaterThanOrEqualTo(600);
+            Flatten(form).OfType<Button>().Should().Contain(b => b.AccessibleName == "managePriorities");
+            Flatten(form).OfType<Control>().Should().Contain(c => c.AccessibleName == "statusTabs");
+            Flatten(form).OfType<Button>().Should().Contain(b => b.AccessibleName == "fidoTab");
+            Flatten(form).OfType<Button>().Should().Contain(b => b.AccessibleName == "computerTab");
+            Flatten(form).OfType<ThemedButton>().Single(b => b.AccessibleName == "computerTab").PerformClick();
+            Flatten(form).OfType<ThemedButton>().Single(b => b.AccessibleName == "fidoTab").Primary.Should().BeFalse();
+            Flatten(form).OfType<ThemedButton>().Single(b => b.AccessibleName == "fidoTab").PerformClick();
+            Flatten(form).OfType<ThemedButton>().Single(b => b.AccessibleName == "fidoTab").Primary.Should().BeTrue();
+            Flatten(form).OfType<CheckBox>().Should().NotContain(c => c.AccessibleName == "skipAllOptions");
+            int height = form.ClientSize.Height;
+            int footerTop = form.FooterTop;
+            Flatten(form).OfType<RadioButton>().Single(r => r.AccessibleName == "pinModeCache").Checked = true;
+            form.ClientSize.Height.Should().Be(height);
+            form.FooterTop.Should().Be(footerTop);
+            Flatten(form).OfType<RadioButton>().Single(r => r.AccessibleName == "pinModeOff").Checked = true;
+            form.ClientSize.Height.Should().Be(height);
+            form.FooterTop.Should().Be(footerTop);
+            Flatten(form).OfType<ThemedButton>().First(b => b.AccessibleName == "pauseToggle").Primary.Should().BeFalse();
+            Flatten(form).OfType<Panel>().Should().Contain(p => p.AccessibleName == "fidoScroll" && p.AutoScroll);
+            Flatten(form).OfType<Panel>().Should().Contain(p => p.AccessibleName == "computerScroll" && p.AutoScroll);
+            form.ClientSize.Height.Should().BeGreaterThanOrEqualTo(860);
+            Flatten(form).OfType<Label>().Should().Contain(l => l.AccessibleName == "pinSampleLabel");
             Flatten(form).OfType<Button>().First(b => b.AccessibleName == "pauseToggle").PerformClick();
             state.Enabled.Should().BeFalse();
             form.HideToTrayIfUserClosing(CloseReason.WindowsShutDown).Should().BeFalse();
@@ -140,7 +163,7 @@ public sealed class UiAutomationAndDesktopTests: IDisposable {
                     () => root,
                     () => Path.Combine(root, "AuthenticatorChooser.exe"),
                     (_, _) => { });
-                session.Run(Startup.ToLaunchRequest(false, false, false, null, (false, null))).Should().Be(0);
+                session.Run(Startup.ToLaunchRequest(false, false, false, null, (false, null), false, true)).Should().Be(0);
                 Directory.Delete(root, true);
             } catch (Exception e) {
                 error = e;

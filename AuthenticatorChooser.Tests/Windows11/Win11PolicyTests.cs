@@ -46,17 +46,27 @@ public sealed class Win11PolicyTests {
     [InlineData(null, Win1125H2ChallengeAction.IgnoreMissingName)]
     [InlineData("Security key", Win1125H2ChallengeAction.AlreadySecurityKey)]
     public void ChallengePolicy_SecurityKeyWithoutPin(string? name, Win1125H2ChallengeAction expected) {
-        Win1125H2ChallengePolicy.DecideChallenge(name, ["Security key"], null).Should().Be(expected);
+        Win1125H2ChallengePolicy.DecideChallenge(name, ["Security key"], PinMode.Off, null, false).Should().Be(expected);
     }
 
     [Fact]
     public void ChallengePolicy_AutosubmitsPin() {
-        Win1125H2ChallengePolicy.DecideChallenge("Security key", ["Security key"], 6).Should().Be(Win1125H2ChallengeAction.AutosubmitSecurityKeyPin);
+        Win1125H2ChallengePolicy.DecideChallenge("Security key", ["Security key"], PinMode.Length, 6, false)
+            .Should().Be(Win1125H2ChallengeAction.AutosubmitSecurityKeyPin);
+        Win1125H2ChallengePolicy.DecideChallenge("Security key", ["Security key"], PinMode.Cache, null, false)
+            .Should().Be(Win1125H2ChallengeAction.AutosubmitSecurityKeyPin);
     }
 
     [Fact]
     public void ChallengePolicy_InvokesOtherPasskey() {
-        Win1125H2ChallengePolicy.DecideChallenge("Windows Hello", ["Security key"], null).Should().Be(Win1125H2ChallengeAction.InvokeChooseDifferentPasskey);
+        Win1125H2ChallengePolicy.DecideChallenge("Windows Hello", ["Security key"], PinMode.Off, null, true)
+            .Should().Be(Win1125H2ChallengeAction.InvokeChooseDifferentPasskey);
+    }
+
+    [Fact]
+    public void ChallengePolicy_LeavesHelloWhenAsk() {
+        Win1125H2ChallengePolicy.DecideChallenge("Windows Hello", ["Security key"], PinMode.Off, null, false)
+            .Should().Be(Win1125H2ChallengeAction.LeaveAlone);
     }
 
 }

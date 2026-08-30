@@ -20,7 +20,9 @@ public static class TitlePolicy {
         return EqualsAny(actualTitle, expected);
     }
 
-    public static bool IncludeAggressiveTitles(bool skipAllNonSecurityKeyOptions, int? autoSubmitPinLength) =>
-        skipAllNonSecurityKeyOptions || PinPolicy.ShouldAutosubmit(autoSubmitPinLength);
+    public static bool IncludeAggressiveTitles(bool skipAllNonSecurityKeyOptions, PinMode pinMode, int? autoSubmitPinLength, bool skipWindowsHello = false) =>
+        skipAllNonSecurityKeyOptions
+        || skipWindowsHello
+        || PinFillPolicy.WantsPinDialog(pinMode, autoSubmitPinLength);
 
 }

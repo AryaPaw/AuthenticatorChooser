@@ -21,6 +21,8 @@ public abstract class Win11Strategy(ChooserOptions options): PromptStrategy {
 
     internal static Func<AutomationElement, CancellationToken, Task<AutomationElement?>>? FindPinOverride { get; set; }
 
+    private IntPtr pinFilledHwnd;
+
     protected ChooserOptions options { get; } = options;
 
     public abstract bool canHandleTitle(string? actualTitle);
@@ -41,16 +43,49 @@ public abstract class Win11Strategy(ChooserOptions options): PromptStrategy {
         }
 
         IReadOnlyList<ChoiceMatch> matches = authenticatorChoices.Select(choice => new ChoiceMatch(choice, choice.Current.Name)).ToList();
-        ChoiceMatch desired = new(desiredChoice, desiredChoice.Current.Name);
-        bool onlyKeyAndPhone = ChoiceMatchPolicy.IsOnlySecurityKeyAndNewPhone(matches, desired, I18N.getStrings(I18N.Key.SMARTPHONE));
-        SkipReason reason = SkipPolicy.Decide(enabled, false, options.skipAllNonSecurityKeyOptions, onlyKeyAndPhone);
+        LearnVisible(matches);
+        AuthenticatorDecision decision = AuthenticatorPriorityPolicy.Decide(
+            matches,
+            options.priorityRules,
+            options.LocaleNames(),
+            options.skipAllNonSecurityKeyOptions);
+        SkipReason reason = decision.Kind switch {
+            AuthenticatorDecisionKind.Select => SkipReason.None,
+            AuthenticatorDecisionKind.Ask => SkipReason.ExtraOptions,
+            AuthenticatorDecisionKind.None => SkipReason.ExtraOptions,
+            _ => throw new InvalidOperationException($"Unhandled authenticator decision {decision.Kind}")
+        };
         if (reason == SkipReason.ExtraOptions) {
             LOGGER.Info(
-                "Dialog box has a choice that is neither pairing a new phone nor USB security key (such as an existing phone, PIN, or biometrics), skipping because you might want to choose it. You may override this behavior with --skip-all-non-security-key-options.");
+                "Not auto-submitting this authenticator list ({0})",
+                decision.Reason);
             options.state.Report(ChooserEventKind.ExtraOptions, "Other authenticator options are present; not auto-submitting");
         }
 
         return reason;
+    }
+
+    protected AuthenticatorDecision DecideVisible(IEnumerable<AutomationElement> authenticatorChoices) {
+        IReadOnlyList<ChoiceMatch> matches = authenticatorChoices.Select(choice => new ChoiceMatch(choice, choice.Current.Name)).ToList();
+        LearnVisible(matches);
+        return AuthenticatorPriorityPolicy.Decide(
+            matches,
+            options.priorityRules,
+            options.LocaleNames(),
+            options.skipAllNonSecurityKeyOptions);
+    }
+
+    protected void LearnVisible(IReadOnlyList<ChoiceMatch> matches) {
+        AppSettings next = AuthenticatorPriorityPolicy.Learn(
+            options.state.ToSettings(),
+            matches.Select(match => match.Name),
+            options.LocaleNames());
+        if (next.PriorityRules.Count == options.state.PriorityRules.Count) {
+            return;
+        }
+
+        options.state.ApplySettings(next);
+        options.persist?.Invoke();
     }
 
     protected bool shouldSkipSubmission(AutomationElement desiredChoice, IEnumerable<AutomationElement> authenticatorChoices, bool isShiftDown) =>
@@ -81,6 +116,58 @@ public abstract class Win11Strategy(ChooserOptions options): PromptStrategy {
 
         return await outerScrollViewer.WaitForFirstAsync(TreeScope.Descendants, new PropertyCondition(AutomationElement.IsPasswordProperty, true),
             PinFieldTimeout, ct);
+    }
+
+    protected void handlePinPrompt(AutomationElement fidoEl, AutomationElement outerScrollViewer, AutomationElement? pinField = null) {
+        IntPtr hwnd = new(fidoEl.Current.NativeWindowHandle);
+        int pid = fidoEl.Current.ProcessId;
+        PinFillDecision decision = PinFillPolicy.Decide(
+            options.pinMode,
+            options.pinCache?.HasCached == true,
+            options.windowTrust.IsTrustedFidoWindow(hwnd, pid),
+            options.devices.CountCtapHid(),
+            pinFilledHwnd == hwnd && hwnd != IntPtr.Zero,
+            options.debugger.IsAttached);
+
+        switch (decision) {
+            case PinFillDecision.DoNothing:
+                return;
+            case PinFillDecision.WatchLength:
+                autosubmitPin(fidoEl, outerScrollViewer, pinField);
+                return;
+            case PinFillDecision.RefuseAndClear:
+                LOGGER.Info("Clearing the cached PIN after a repeated PIN prompt or debugger");
+                options.pinCache?.Clear();
+                pinFilledHwnd = hwnd;
+                return;
+            case PinFillDecision.ManualFallback:
+                LOGGER.Debug("Cached PIN fill is unavailable; leaving the PIN dialog for the user");
+                return;
+            case PinFillDecision.FillCache:
+                if (options.pinCache is null) {
+                    return;
+                }
+
+                if (!options.windowTrust.IsTrustedFidoWindow(hwnd, pid)) {
+                    LOGGER.Warn("Refusing PIN fill because the FIDO window is no longer trusted");
+                    return;
+                }
+
+                bool filled = options.pinCache.TryUse(bstr => options.pinFiller.TrySetPasswordValue(hwnd, bstr));
+                if (!filled) {
+                    LOGGER.Info("Native PIN fill failed; leaving the PIN dialog for the user");
+                    return;
+                }
+
+                pinFilledHwnd = hwnd;
+                if (!PinAutosubmit.TryInvokeOk(fidoEl)) {
+                    LOGGER.Error("Could not invoke OK after filling the security key PIN");
+                }
+
+                return;
+            default:
+                throw new InvalidOperationException($"Unhandled PIN fill decision {decision}");
+        }
     }
 
     protected void autosubmitPin(AutomationElement fidoEl, AutomationElement outerScrollViewer, AutomationElement? pinField = null) {

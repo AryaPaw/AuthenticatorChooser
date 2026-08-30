@@ -2,7 +2,7 @@ namespace AuthenticatorChooser.Settings;
 
 public sealed class AppSettings {
 
-    public const int CurrentSchema = 2;
+    public const int CurrentSchema = 3;
 
     public int SchemaVersion { get; set; } = CurrentSchema;
 
@@ -11,6 +11,12 @@ public sealed class AppSettings {
     public bool SkipAllNonSecurityKeyOptions { get; set; }
 
     public int AutoSubmitPinLength { get; set; }
+
+    public PinMode PinMode { get; set; } = PinMode.Off;
+
+    public PinCacheLifetime PinCacheLifetime { get; set; } = PinCacheLifetime.TwoMinutes;
+
+    public List<AuthenticatorPriorityRule> PriorityRules { get; set; } = AuthenticatorPriorityCatalog.CreateDefaults().Select(rule => rule.Clone()).ToList();
 
     public bool FileLogEnabled { get; set; }
 

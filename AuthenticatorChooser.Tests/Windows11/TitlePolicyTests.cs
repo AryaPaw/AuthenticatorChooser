@@ -24,9 +24,11 @@ public sealed class TitlePolicyTests {
 
     [Fact]
     public void IncludeAggressiveTitles_WhenSkipAllOrPin() {
-        TitlePolicy.IncludeAggressiveTitles(true, null).Should().BeTrue();
-        TitlePolicy.IncludeAggressiveTitles(false, 6).Should().BeTrue();
-        TitlePolicy.IncludeAggressiveTitles(false, null).Should().BeFalse();
+        TitlePolicy.IncludeAggressiveTitles(true, PinMode.Off, null).Should().BeTrue();
+        TitlePolicy.IncludeAggressiveTitles(false, PinMode.Length, 6).Should().BeTrue();
+        TitlePolicy.IncludeAggressiveTitles(false, PinMode.Cache, null).Should().BeTrue();
+        TitlePolicy.IncludeAggressiveTitles(false, PinMode.Off, null).Should().BeFalse();
+        TitlePolicy.IncludeAggressiveTitles(false, PinMode.Off, null, true).Should().BeTrue();
     }
 
 }
