@@ -13,6 +13,8 @@ public sealed class PinLearnPolicyTests {
         PinLearnPolicy.IsCaptureForeground(10, 10, 0, 5).Should().BeFalse();
         PinLearnPolicy.IsCaptureForeground(11, 10, 5, 6, 10, 10).Should().BeTrue();
         PinLearnPolicy.IsCaptureForeground(11, 10, 5, 6, 12, 10).Should().BeFalse();
+        PinLearnPolicy.IsCaptureForeground(11, 10, 5, 6, 12, 10, 20, 20).Should().BeTrue();
+        PinLearnPolicy.IsCaptureForeground(11, 10, 5, 6, 12, 10, 20, 21).Should().BeFalse();
     }
 
     [Fact]

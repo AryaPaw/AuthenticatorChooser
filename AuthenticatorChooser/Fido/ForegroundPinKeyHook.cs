@@ -26,6 +26,7 @@ internal sealed class ForegroundPinKeyHook: IPinKeyHook {
     private const int WmKeydown = 0x0100;
     private const int VkBack = 0x08;
     private const int VkReturn = 0x0D;
+    private const int VkShift = 0x10;
     private const uint WmQuit = 0x0012;
 
     private readonly object gate = new();
@@ -134,7 +135,17 @@ internal sealed class ForegroundPinKeyHook: IPinKeyHook {
             NativeSecurity.GetWindowThreadProcessId(foreground, out uint foregroundPid);
             IntPtr foregroundRoot = NativeSecurity.GetAncestorRoot(foreground);
             IntPtr dialogRoot = NativeSecurity.GetAncestorRoot(hwnd);
-            if (current is not null && PinLearnPolicy.IsCaptureForeground(foreground, hwnd, pid, (int) foregroundPid, foregroundRoot, dialogRoot)) {
+            IntPtr foregroundOwner = NativeSecurity.GetAncestorOwnerRoot(foreground);
+            IntPtr dialogOwner = NativeSecurity.GetAncestorOwnerRoot(hwnd);
+            if (current is not null && PinLearnPolicy.IsCaptureForeground(
+                    foreground,
+                    hwnd,
+                    pid,
+                    (int) foregroundPid,
+                    foregroundRoot,
+                    dialogRoot,
+                    foregroundOwner,
+                    dialogOwner)) {
                 Apply(current, kbd);
             }
         }
@@ -153,27 +164,16 @@ internal sealed class ForegroundPinKeyHook: IPinKeyHook {
             return;
         }
 
-        if (DigitFromVk(kbd.vkCode) is char digit) {
-            current.OnCharacter(digit);
+        bool shift = (GetKeyState(VkShift) & 0x8000) != 0;
+        if (PinKeyMap.FromVirtualKey(kbd.vkCode, shift) is char mapped) {
+            current.OnCharacter(mapped);
             return;
         }
 
-        char? mapped = MapChar(kbd);
-        if (mapped is char value) {
+        char? unicode = MapChar(kbd);
+        if (unicode is char value) {
             current.OnCharacter(value);
         }
-    }
-
-    private static char? DigitFromVk(uint vkCode) {
-        if (vkCode is >= 0x30 and <= 0x39) {
-            return (char) vkCode;
-        }
-
-        if (vkCode is >= 0x60 and <= 0x69) {
-            return (char) ('0' + (vkCode - 0x60));
-        }
-
-        return null;
     }
 
     private static char? MapChar(KbdLlHook kbd) {
@@ -203,6 +203,9 @@ internal sealed class ForegroundPinKeyHook: IPinKeyHook {
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern short GetKeyState(int nVirtKey);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

@@ -11,8 +11,8 @@ public static class Win1123H2ListPolicy {
             return new Win1123H2ListDecision(false, false, false);
         }
 
-        bool paused = skipReason == SkipReason.Paused;
-        bool selectChoice = haveChoice && !paused && !(isTpm && shiftDown);
+        bool blocked = skipReason is SkipReason.Paused or SkipReason.PinModeOff;
+        bool selectChoice = haveChoice && !blocked && !(isTpm && shiftDown);
         bool trySubmit = haveChoice && !isTpm && skipReason == SkipReason.None;
         return new Win1123H2ListDecision(isTpm, selectChoice, trySubmit);
     }

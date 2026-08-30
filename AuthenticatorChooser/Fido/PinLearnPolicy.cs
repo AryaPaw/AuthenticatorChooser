@@ -3,7 +3,7 @@ namespace AuthenticatorChooser.Fido;
 public static class PinLearnPolicy {
 
     public static bool IsCaptureForeground(IntPtr foreground, IntPtr dialogHwnd, int dialogPid, int foregroundPid) =>
-        IsCaptureForeground(foreground, dialogHwnd, dialogPid, foregroundPid, IntPtr.Zero, IntPtr.Zero);
+        IsCaptureForeground(foreground, dialogHwnd, dialogPid, foregroundPid, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
 
     public static bool IsCaptureForeground(
         IntPtr foreground,
@@ -11,7 +11,18 @@ public static class PinLearnPolicy {
         int dialogPid,
         int foregroundPid,
         IntPtr foregroundRoot,
-        IntPtr dialogRoot) {
+        IntPtr dialogRoot) =>
+        IsCaptureForeground(foreground, dialogHwnd, dialogPid, foregroundPid, foregroundRoot, dialogRoot, IntPtr.Zero, IntPtr.Zero);
+
+    public static bool IsCaptureForeground(
+        IntPtr foreground,
+        IntPtr dialogHwnd,
+        int dialogPid,
+        int foregroundPid,
+        IntPtr foregroundRoot,
+        IntPtr dialogRoot,
+        IntPtr foregroundOwnerRoot,
+        IntPtr dialogOwnerRoot) {
         if (foreground == IntPtr.Zero || dialogPid <= 0 || foregroundPid <= 0) {
             return false;
         }
@@ -21,6 +32,10 @@ public static class PinLearnPolicy {
         }
 
         if (dialogRoot != IntPtr.Zero && foregroundRoot == dialogRoot) {
+            return true;
+        }
+
+        if (dialogOwnerRoot != IntPtr.Zero && foregroundOwnerRoot == dialogOwnerRoot) {
             return true;
         }
 

@@ -23,6 +23,7 @@ public static class SkipPolicy {
         SkipReason.Paused => ChooserEventKind.Paused,
         SkipReason.ShiftHeld => ChooserEventKind.ShiftHeld,
         SkipReason.ExtraOptions => ChooserEventKind.ExtraOptions,
+        SkipReason.PinModeOff => ChooserEventKind.PinModeOff,
         _ => throw new InvalidOperationException($"Unhandled skip reason {reason}")
     };
 

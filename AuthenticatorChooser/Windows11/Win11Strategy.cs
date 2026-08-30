@@ -42,6 +42,12 @@ public abstract class Win11Strategy(ChooserOptions options): PromptStrategy {
             return SkipReason.ShiftHeld;
         }
 
+        if (!PinFillPolicy.AllowsChoiceAutosubmit(options.pinMode)) {
+            LOGGER.Info("PIN mode is off, not submitting dialog box");
+            options.state.Report(ChooserEventKind.PinModeOff, "PIN mode is off, not submitting dialog box");
+            return SkipReason.PinModeOff;
+        }
+
         IReadOnlyList<ChoiceMatch> matches = authenticatorChoices.Select(choice => new ChoiceMatch(choice, choice.Current.Name)).ToList();
         LearnVisible(matches);
         AuthenticatorDecision decision = AuthenticatorPriorityPolicy.Decide(
@@ -188,9 +194,20 @@ public abstract class Win11Strategy(ChooserOptions options): PromptStrategy {
         int pid) {
         _ = Task.Run(async () => {
             try {
-                pinField ??= await findPinField(outerScrollViewer, Startup.EXITING);
+                using CancellationTokenSource findTimeout = new(PinFillRetryPolicy.FindFieldTimeout);
+                using CancellationTokenSource findCts = CancellationTokenSource.CreateLinkedTokenSource(Startup.EXITING, findTimeout.Token);
+                try {
+                    pinField ??= await findPinField(outerScrollViewer, findCts.Token);
+                } catch (OperationCanceledException) when (!Startup.EXITING.IsCancellationRequested) {
+                    pinField = null;
+                }
+
                 if (pinField is null) {
-                    LOGGER.Info("PIN field not found in time; leaving the dialog for the user");
+                    LOGGER.Info("PIN field not found in time; capturing typed keys instead");
+                    if (PinFillPolicy.AfterFailedFill(options.pinMode) == PinFillDecision.LearnFromPrompt) {
+                        learnPin(fidoEl, hwnd, pid, outerScrollViewer, null);
+                    }
+
                     return;
                 }
 
@@ -201,17 +218,37 @@ public abstract class Win11Strategy(ChooserOptions options): PromptStrategy {
 
                 IntPtr fieldHwnd = new(pinField.Current.NativeWindowHandle);
                 AutomationElement field = pinField;
-                bool filled = options.pinCache.TryUse(bstr => {
-                    foreach (IntPtr target in PinFillHwndPolicy.SearchOrder(hwnd, fieldHwnd)) {
-                        if (options.pinFiller.TrySetPasswordValue(target, bstr)) {
-                            return true;
-                        }
+                bool filled = false;
+                foreach (int delayMs in PinFillRetryPolicy.DelayMs) {
+                    if (delayMs > 0) {
+                        await Task.Delay(delayMs, Startup.EXITING);
                     }
 
-                    return PinAutosubmit.TrySetValue(field, bstr);
-                });
+                    if (!options.windowTrust.IsTrustedFidoWindow(hwnd, pid) || options.pinCache is null) {
+                        LOGGER.Warn("Refusing PIN fill because the FIDO window is no longer trusted");
+                        return;
+                    }
+
+                    try {
+                        fieldHwnd = new(field.Current.NativeWindowHandle);
+                    } catch (ElementNotAvailableException) {
+                        LOGGER.Info("PIN dialog disappeared before it could be filled");
+                        return;
+                    }
+
+                    IntPtr foreground = NativeSecurity.GetForegroundWindow();
+                    filled = options.pinCache.TryUse(bstr => TryFillPin(hwnd, fieldHwnd, foreground, field, bstr));
+                    if (filled) {
+                        break;
+                    }
+                }
+
                 if (!filled) {
-                    LOGGER.Info("PIN fill failed; leaving the dialog for the user (cache kept)");
+                    LOGGER.Info("PIN fill failed; leaving the PIN dialog for the user (cache kept)");
+                    if (PinFillPolicy.AfterFailedFill(options.pinMode) == PinFillDecision.LearnFromPrompt) {
+                        learnPin(fidoEl, hwnd, pid, outerScrollViewer, field);
+                    }
+
                     return;
                 }
 
@@ -227,6 +264,18 @@ public abstract class Win11Strategy(ChooserOptions options): PromptStrategy {
                 LOGGER.Error(exception, "PIN fill failed");
             }
         });
+    }
+
+    private bool TryFillPin(IntPtr hwnd, IntPtr fieldHwnd, IntPtr foreground, AutomationElement field, IntPtr bstr) {
+        IntPtr hostRoot = NativeSecurity.GetAncestorRoot(hwnd);
+        IntPtr ownerRoot = NativeSecurity.GetAncestorOwnerRoot(hwnd);
+        foreach (IntPtr target in PinFillHwndPolicy.SearchOrder(hwnd, fieldHwnd, foreground, hostRoot, ownerRoot)) {
+            if (options.pinFiller.TrySetPasswordValue(target, bstr)) {
+                return true;
+            }
+        }
+
+        return PinAutosubmit.TrySetValue(field, bstr);
     }
 
     private void learnPin(AutomationElement fidoEl, IntPtr hwnd, int pid, AutomationElement outerScrollViewer, AutomationElement? pinField) {

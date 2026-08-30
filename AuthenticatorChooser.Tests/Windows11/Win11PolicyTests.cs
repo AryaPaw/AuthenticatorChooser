@@ -20,6 +20,13 @@ public sealed class Win11PolicyTests {
     }
 
     [Fact]
+    public void ListPolicy_DoesNotSelectWhenPinModeOff() {
+        Win1123H2ListDecision off = Win1123H2ListPolicy.Decide(true, false, false, false, SkipReason.PinModeOff);
+        off.SelectChoice.Should().BeFalse();
+        off.TrySubmitNext.Should().BeFalse();
+    }
+
+    [Fact]
     public void ListPolicy_DoesNotSelectTpmChoiceWhenShiftHeld() {
         Win1123H2ListDecision decision = Win1123H2ListPolicy.Decide(false, true, true, true, SkipReason.ShiftHeld);
         decision.SelectChoice.Should().BeFalse();
@@ -59,8 +66,10 @@ public sealed class Win11PolicyTests {
 
     [Fact]
     public void ChallengePolicy_InvokesOtherPasskey() {
-        Win1125H2ChallengePolicy.DecideChallenge("Windows Hello", ["Security key"], PinMode.Off, null, true)
+        Win1125H2ChallengePolicy.DecideChallenge("Windows Hello", ["Security key"], PinMode.Cache, null, true)
             .Should().Be(Win1125H2ChallengeAction.InvokeChooseDifferentPasskey);
+        Win1125H2ChallengePolicy.DecideChallenge("Windows Hello", ["Security key"], PinMode.Off, null, true)
+            .Should().Be(Win1125H2ChallengeAction.LeaveAlone);
     }
 
     [Fact]

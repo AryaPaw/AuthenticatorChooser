@@ -49,4 +49,18 @@ public static class PinFillPolicy {
         _ => throw new InvalidOperationException($"Unhandled PIN mode {mode}")
     };
 
+    public static bool AllowsChoiceAutosubmit(PinMode mode) => mode switch {
+        PinMode.Off => false,
+        PinMode.Length => true,
+        PinMode.Cache => true,
+        _ => throw new InvalidOperationException($"Unhandled PIN mode {mode}")
+    };
+
+    public static PinFillDecision AfterFailedFill(PinMode mode) => mode switch {
+        PinMode.Cache => PinFillDecision.LearnFromPrompt,
+        PinMode.Off => PinFillDecision.DoNothing,
+        PinMode.Length => PinFillDecision.DoNothing,
+        _ => throw new InvalidOperationException($"Unhandled PIN mode {mode}")
+    };
+
 }

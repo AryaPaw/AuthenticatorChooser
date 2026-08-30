@@ -19,6 +19,7 @@ public sealed class SkipPolicyTests {
     [InlineData(SkipReason.Paused, ChooserEventKind.Paused)]
     [InlineData(SkipReason.ShiftHeld, ChooserEventKind.ShiftHeld)]
     [InlineData(SkipReason.ExtraOptions, ChooserEventKind.ExtraOptions)]
+    [InlineData(SkipReason.PinModeOff, ChooserEventKind.PinModeOff)]
     public void ToEvent_MapsReasons(SkipReason reason, ChooserEventKind expected) {
         SkipPolicy.ToEvent(reason).Should().Be(expected);
     }

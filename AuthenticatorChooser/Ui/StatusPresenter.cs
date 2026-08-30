@@ -13,6 +13,7 @@ public static class StatusPresenter {
             case ChooserEventKind.Paused:
             case ChooserEventKind.ShiftHeld:
             case ChooserEventKind.ExtraOptions:
+            case ChooserEventKind.PinModeOff:
             case ChooserEventKind.DesiredChoiceMissing:
             case ChooserEventKind.UnsupportedDialog:
             case ChooserEventKind.Error:

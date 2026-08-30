@@ -26,6 +26,7 @@ public sealed class PinPriorityUiTests {
             Flatten(form).OfType<Button>().Should().NotContain(b => b.AccessibleName == "pinCacheStore");
             Flatten(form).OfType<NumericUpDown>().Should().BeEmpty();
             Flatten(form).OfType<CheckBox>().Should().NotContain(c => c.AccessibleName == "pinCacheAutoSubmit");
+            Flatten(form).OfType<Label>().Select(l => l.Text).Should().Contain(t => t.Contains("USB-key choice") && t.Contains("never written"));
             Flatten(form).OfType<Label>().Select(l => l.Text).Should().Contain(t => t.Contains("Enter once") && t.Contains("restart"));
             Flatten(form).OfType<Label>().Single(l => l.AccessibleName == "pinCacheStatus").Text.Should().Contain("press Enter");
             state.AutoSubmitPinLength = 6;

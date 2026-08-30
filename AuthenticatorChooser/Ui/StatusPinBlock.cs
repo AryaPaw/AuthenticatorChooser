@@ -37,7 +37,7 @@ internal sealed class StatusPinBlock: TableLayoutPanel {
         BackColor = UiTheme.Card;
         ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
 
-        Label intro = WrapLabel("Choose one PIN mode. The PIN is never written to disk.");
+        Label intro = WrapLabel("Choose one PIN mode. Off leaves Windows Security alone, including the USB-key choice. The PIN is never written to disk.");
         Add(intro, 12);
 
         offMode = ModeRadio("Off", "pinModeOff");

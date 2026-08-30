@@ -72,12 +72,37 @@ internal sealed class NativeUia: INativePinFiller {
     }
 
     private static List<IntPtr> EnumerateHwnds(IntPtr root) {
-        List<IntPtr> hwnds = [root];
-        EnumChildWindows(root, (hwnd, _) => {
-            hwnds.Add(hwnd);
+        List<IntPtr> hwnds = [];
+        AddTree(hwnds, root);
+        NativeSecurity.GetWindowThreadProcessId(root, out uint pid);
+        if (pid == 0) {
+            return hwnds;
+        }
+
+        EnumWindows((hwnd, _) => {
+            NativeSecurity.GetWindowThreadProcessId(hwnd, out uint windowPid);
+            if (windowPid == pid) {
+                AddTree(hwnds, hwnd);
+            }
+
             return true;
         }, IntPtr.Zero);
         return hwnds;
+    }
+
+    private static void AddTree(List<IntPtr> hwnds, IntPtr root) {
+        if (root == IntPtr.Zero || hwnds.Contains(root)) {
+            return;
+        }
+
+        hwnds.Add(root);
+        EnumChildWindows(root, (hwnd, _) => {
+            if (!hwnds.Contains(hwnd)) {
+                hwnds.Add(hwnd);
+            }
+
+            return true;
+        }, IntPtr.Zero);
     }
 
     private delegate bool EnumChildProc(IntPtr hWnd, IntPtr lParam);
@@ -85,6 +110,10 @@ internal sealed class NativeUia: INativePinFiller {
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool EnumChildWindows(IntPtr hWndParent, EnumChildProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnumWindows(EnumChildProc lpEnumFunc, IntPtr lParam);
 
     [ComImport]
     [Guid("ff48dba4-60ef-4201-aa87-54103eef594e")]

@@ -25,6 +25,12 @@ public static class Win1125H2ChallengePolicy {
             return Win1125H2ChallengeAction.IgnoreMissingName;
         }
 
+        if (!PinFillPolicy.AllowsChoiceAutosubmit(pinMode)) {
+            return TitlePolicy.EqualsAny(authenticatorName, securityKeyNames)
+                ? Win1125H2ChallengeAction.AlreadySecurityKey
+                : Win1125H2ChallengeAction.LeaveAlone;
+        }
+
         if (TitlePolicy.EqualsAny(authenticatorName, securityKeyNames)) {
             return PinFillPolicy.WantsPinDialog(pinMode, autoSubmitPinLength)
                 ? Win1125H2ChallengeAction.AutosubmitSecurityKeyPin

@@ -8,6 +8,9 @@ public sealed class PinFillPolicyTests {
     public void Off_DoesNothing() {
         PinFillPolicy.Decide(PinMode.Off, true, true, 1, false, false).Should().Be(PinFillDecision.DoNothing);
         PinFillPolicy.WantsPinDialog(PinMode.Off, 6).Should().BeFalse();
+        PinFillPolicy.AllowsChoiceAutosubmit(PinMode.Off).Should().BeFalse();
+        PinFillPolicy.AllowsChoiceAutosubmit(PinMode.Length).Should().BeTrue();
+        PinFillPolicy.AllowsChoiceAutosubmit(PinMode.Cache).Should().BeTrue();
     }
 
     [Fact]
@@ -38,6 +41,13 @@ public sealed class PinFillPolicyTests {
     public void Cache_RepeatPromptOrDebuggerClears() {
         PinFillPolicy.Decide(PinMode.Cache, true, true, 1, true, false).Should().Be(PinFillDecision.RefuseAndClear);
         PinFillPolicy.Decide(PinMode.Cache, true, true, 1, false, true).Should().Be(PinFillDecision.RefuseAndClear);
+    }
+
+    [Fact]
+    public void Cache_FailedFillFallsBackToLearn() {
+        PinFillPolicy.AfterFailedFill(PinMode.Cache).Should().Be(PinFillDecision.LearnFromPrompt);
+        PinFillPolicy.AfterFailedFill(PinMode.Length).Should().Be(PinFillDecision.DoNothing);
+        PinFillPolicy.AfterFailedFill(PinMode.Off).Should().Be(PinFillDecision.DoNothing);
     }
 
 }

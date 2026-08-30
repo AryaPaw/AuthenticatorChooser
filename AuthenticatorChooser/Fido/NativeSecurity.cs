@@ -37,6 +37,18 @@ internal static class NativeSecurity {
         return root == IntPtr.Zero ? hWnd : root;
     }
 
+    internal static IntPtr GetAncestorOwnerRoot(IntPtr hWnd) {
+        if (hWnd == IntPtr.Zero) {
+            return IntPtr.Zero;
+        }
+
+        IntPtr root = GetAncestor(hWnd, 3);
+        return root == IntPtr.Zero ? hWnd : root;
+    }
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr GetForegroundWindow();
+
     [DllImport("oleaut32.dll", CharSet = CharSet.Unicode)]
     internal static extern IntPtr SysAllocString(IntPtr psz);
 

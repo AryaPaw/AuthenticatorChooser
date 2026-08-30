@@ -106,4 +106,15 @@ public sealed class PinLearnSessionTests {
         session.TakeCommitOnWindowClosed().Should().Be("2468");
     }
 
+    [Fact]
+    public void FieldEmptied_DoesNotWipeIncompleteTypedPin() {
+        PinLearnSession session = new();
+        session.OnCharacter('1');
+        session.OnCharacter('2');
+        session.OnFieldEmptied();
+        session.OnCharacter('3');
+        session.OnCharacter('4');
+        session.TakeCommitOnWindowClosed().Should().Be("1234");
+    }
+
 }

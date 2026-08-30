@@ -5,6 +5,7 @@ public enum SkipReason {
     None,
     Paused,
     ShiftHeld,
-    ExtraOptions
+    ExtraOptions,
+    PinModeOff
 
 }

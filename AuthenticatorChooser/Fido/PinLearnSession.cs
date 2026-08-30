@@ -34,10 +34,7 @@ internal sealed class PinLearnSession {
     public void OnFieldEmptied() {
         if (PinPolicy.ShouldAutosubmit(typed.Length)) {
             OnEnter();
-            return;
         }
-
-        typed.Clear();
     }
 
     public int CapturedLength {
