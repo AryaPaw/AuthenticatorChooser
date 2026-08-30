@@ -26,7 +26,7 @@ public abstract class Win11Strategy(ChooserOptions options): PromptStrategy {
     protected ChooserOptions options { get; } = options;
 
     public abstract bool canHandleTitle(string? actualTitle);
-    public abstract Task handleWindow(string actualTitle, AutomationElement fidoEl, AutomationElement outerScrollViewer, bool isShiftDown);
+    public abstract Task handleWindow(string actualTitle, AutomationElement fidoEl, AutomationElement outerScrollViewer, bool isShiftDown, IntPtr hostWindow = default);
 
     protected SkipReason getSkipReason(AutomationElement desiredChoice, IEnumerable<AutomationElement> authenticatorChoices, bool isShiftDown) {
         bool enabled = options.enabled;
@@ -118,16 +118,26 @@ public abstract class Win11Strategy(ChooserOptions options): PromptStrategy {
             PinFieldTimeout, ct);
     }
 
-    protected void handlePinPrompt(AutomationElement fidoEl, AutomationElement outerScrollViewer, AutomationElement? pinField = null) {
-        IntPtr hwnd = new(fidoEl.Current.NativeWindowHandle);
+    protected void handlePinPrompt(AutomationElement fidoEl, AutomationElement outerScrollViewer, AutomationElement? pinField = null, IntPtr hostWindow = default) {
+        IntPtr hwnd = PinLearnPolicy.ResolveDialogHwnd(new(fidoEl.Current.NativeWindowHandle), hostWindow);
         int pid = fidoEl.Current.ProcessId;
+        if (hwnd != IntPtr.Zero) {
+            NativeSecurity.GetWindowThreadProcessId(hwnd, out uint windowPid);
+            if (windowPid != 0) {
+                pid = (int) windowPid;
+            }
+        }
+
+        bool trusted = options.windowTrust.IsTrustedFidoWindow(hwnd, pid);
+        LOGGER.Info("PIN dialog hwnd=0x{hwnd:x} pid={pid} trusted={trusted}", hwnd.ToInt64(), pid, trusted);
         PinFillDecision decision = PinFillPolicy.Decide(
             options.pinMode,
             options.pinCache?.HasCached == true,
-            options.windowTrust.IsTrustedFidoWindow(hwnd, pid),
+            trusted,
             options.devices.CountCtapHid(),
             pinFilledHwnd == hwnd && hwnd != IntPtr.Zero,
             options.debugger.IsAttached);
+        LOGGER.Info("PIN fill decision {decision}", decision);
 
         switch (decision) {
             case PinFillDecision.DoNothing:
@@ -138,10 +148,17 @@ public abstract class Win11Strategy(ChooserOptions options): PromptStrategy {
             case PinFillDecision.RefuseAndClear:
                 LOGGER.Info("Clearing the cached PIN after a repeated PIN prompt or debugger");
                 options.pinCache?.Clear();
-                pinFilledHwnd = hwnd;
+                ForgetLearnedPinLength();
+                if (options.debugger.IsAttached) {
+                    pinFilledHwnd = hwnd;
+                    return;
+                }
+
+                pinFilledHwnd = IntPtr.Zero;
+                learnPin(fidoEl, hwnd, pid, outerScrollViewer, pinField);
                 return;
             case PinFillDecision.ManualFallback:
-                LOGGER.Debug("Cached PIN fill is unavailable; leaving the PIN dialog for the user");
+                LOGGER.Info("Cached PIN fill is unavailable; leaving the PIN dialog for the user");
                 return;
             case PinFillDecision.FillCache:
                 if (options.pinCache is null) {
@@ -153,20 +170,236 @@ public abstract class Win11Strategy(ChooserOptions options): PromptStrategy {
                     return;
                 }
 
-                bool filled = options.pinCache.TryUse(bstr => options.pinFiller.TrySetPasswordValue(hwnd, bstr));
+                fillCachedPin(fidoEl, outerScrollViewer, pinField, hwnd, pid);
+                return;
+            case PinFillDecision.LearnFromPrompt:
+                learnPin(fidoEl, hwnd, pid, outerScrollViewer, pinField);
+                return;
+            default:
+                throw new InvalidOperationException($"Unhandled PIN fill decision {decision}");
+        }
+    }
+
+    private void fillCachedPin(
+        AutomationElement fidoEl,
+        AutomationElement outerScrollViewer,
+        AutomationElement? pinField,
+        IntPtr hwnd,
+        int pid) {
+        _ = Task.Run(async () => {
+            try {
+                pinField ??= await findPinField(outerScrollViewer, Startup.EXITING);
+                if (pinField is null) {
+                    LOGGER.Info("PIN field not found in time; leaving the dialog for the user");
+                    return;
+                }
+
+                if (!options.windowTrust.IsTrustedFidoWindow(hwnd, pid) || options.pinCache is null) {
+                    LOGGER.Warn("Refusing PIN fill because the FIDO window is no longer trusted");
+                    return;
+                }
+
+                IntPtr fieldHwnd = new(pinField.Current.NativeWindowHandle);
+                AutomationElement field = pinField;
+                bool filled = options.pinCache.TryUse(bstr => {
+                    foreach (IntPtr target in PinFillHwndPolicy.SearchOrder(hwnd, fieldHwnd)) {
+                        if (options.pinFiller.TrySetPasswordValue(target, bstr)) {
+                            return true;
+                        }
+                    }
+
+                    return PinAutosubmit.TrySetValue(field, bstr);
+                });
                 if (!filled) {
-                    LOGGER.Info("Native PIN fill failed; leaving the PIN dialog for the user");
+                    LOGGER.Info("PIN fill failed; leaving the dialog for the user (cache kept)");
                     return;
                 }
 
                 pinFilledHwnd = hwnd;
+                LOGGER.Info("Filled the security key PIN from the in-process cache");
                 if (!PinAutosubmit.TryInvokeOk(fidoEl)) {
                     LOGGER.Error("Could not invoke OK after filling the security key PIN");
                 }
+            } catch (ElementNotAvailableException) {
+                LOGGER.Info("PIN dialog disappeared before it could be filled");
+            } catch (OperationCanceledException) {
+            } catch (Exception exception) when (exception is not OutOfMemoryException) {
+                LOGGER.Error(exception, "PIN fill failed");
+            }
+        });
+    }
 
+    private void learnPin(AutomationElement fidoEl, IntPtr hwnd, int pid, AutomationElement outerScrollViewer, AutomationElement? pinField) {
+        if (options.pinCache is null) {
+            return;
+        }
+
+        if (hwnd == IntPtr.Zero && pid <= 0) {
+            LOGGER.Warn("Cannot learn the security key PIN because the dialog window handle is missing");
+            return;
+        }
+
+        PinLearnSession session = new();
+        options.pinKeyHook.Stop();
+        options.pinKeyHook.Start(hwnd, pid, session);
+        int? learned = options.learnedPinLength;
+        if (PinCacheUxPolicy.AutosubmitFirstTypedPin(learned)) {
+            LOGGER.Info("Waiting for the user to type {0:N0} characters; OK will be pressed and the PIN cached in this process", learned);
+        } else {
+            LOGGER.Info("Waiting for the user to type the security key PIN once; it will be cached in this process only");
+        }
+
+        options.state.Report(ChooserEventKind.Waiting, PinCacheUxPolicy.WaitingStatus(learned));
+
+        bool cleaned = false;
+        bool submitted = false;
+        object commitGate = new();
+        CancellationTokenSource windowClosed = new();
+        Automation.AddAutomationEventHandler(WindowPattern.WindowClosedEvent, fidoEl, TreeScope.Element, onWindowClosed);
+
+        _ = WatchPinField(outerScrollViewer, pinField, session, windowClosed.Token, CommitIfReady, TryAutosubmit);
+        _ = WatchHostWindow(hwnd, windowClosed.Token, CommitIfReady);
+
+        void onWindowClosed(object? sender, AutomationEventArgs e) => CommitIfReady();
+
+        void TryAutosubmit(int typedLength) {
+            if (typedLength == 0) {
+                submitted = false;
                 return;
-            default:
-                throw new InvalidOperationException($"Unhandled PIN fill decision {decision}");
+            }
+
+            if (submitted || !options.enabled) {
+                return;
+            }
+
+            if (!PinCacheUxPolicy.AutosubmitFirstTypedPin(options.learnedPinLength)) {
+                return;
+            }
+
+            if (!PinPolicy.ShouldSubmitTypedPin(typedLength, options.learnedPinLength)) {
+                return;
+            }
+
+            submitted = true;
+            LOGGER.Info("Submitting the security key PIN after {0:N0} characters; it will be cached in this process", typedLength);
+            if (!PinAutosubmit.TryInvokeOk(fidoEl)) {
+                submitted = false;
+                LOGGER.Error("Could not invoke OK after the typed PIN reached the saved length");
+            }
+        }
+
+        void CommitIfReady() {
+            lock (commitGate) {
+                if (cleaned) {
+                    return;
+                }
+
+                cleaned = true;
+            }
+            try {
+                Automation.RemoveAutomationEventHandler(WindowPattern.WindowClosedEvent, fidoEl, onWindowClosed);
+            } catch (ArgumentException) {
+            }
+
+            windowClosed.Cancel();
+            windowClosed.Dispose();
+            options.pinKeyHook.Stop();
+            int captured = session.CapturedLength;
+            string? pin = session.TakeCommitOnWindowClosed();
+            if (pin is null) {
+                LOGGER.Info("PIN prompt closed without a cacheable PIN (captured {count} characters)", captured);
+                return;
+            }
+
+            PinCacheStoreResult stored = options.pinCache.TryStore(pin);
+            if (stored == PinCacheStoreResult.Stored) {
+                RememberPinLength(pin.Length);
+                LOGGER.Info("Cached the security key PIN in this process after the Windows prompt closed");
+            } else {
+                LOGGER.Info("Did not cache the typed PIN ({result})", stored);
+            }
+        }
+    }
+
+    private void ForgetLearnedPinLength() {
+        if (options.state.LearnedPinLength is null) {
+            return;
+        }
+
+        options.state.LearnedPinLength = null;
+        options.persist?.Invoke();
+        LOGGER.Info("Forgot remembered PIN length after a repeated prompt");
+    }
+
+    private void RememberPinLength(int pinLength) {
+        int? remembered = PinCacheUxPolicy.RememberedLength(pinLength);
+        if (remembered == options.state.LearnedPinLength) {
+            return;
+        }
+
+        options.state.LearnedPinLength = remembered;
+        options.persist?.Invoke();
+        LOGGER.Info("Remembered PIN length {0:N0} from the Windows prompt", remembered);
+    }
+
+    private static async Task WatchPinField(
+        AutomationElement outerScrollViewer,
+        AutomationElement? pinField,
+        PinLearnSession session,
+        CancellationToken ct,
+        Action commit,
+        Action<int> onLength) {
+        try {
+            pinField ??= await findPinField(outerScrollViewer, ct);
+            if (pinField is null) {
+                return;
+            }
+
+            AutomationElement watched = pinField;
+            int lastLength = 0;
+            Observe(PinAutosubmit.TryReadLength(watched));
+            while (!ct.IsCancellationRequested) {
+                await Task.Delay(80, ct);
+                int length;
+                try {
+                    length = PinAutosubmit.TryReadLength(watched);
+                } catch (ElementNotAvailableException) {
+                    if (session.CanCommit()) {
+                        commit();
+                    }
+
+                    return;
+                }
+
+                Observe(length);
+            }
+
+            void Observe(int length) {
+                onLength(length);
+                if (lastLength > 0 && length == 0) {
+                    session.OnFieldEmptied();
+                }
+
+                lastLength = length;
+            }
+        } catch (OperationCanceledException) {
+        }
+    }
+
+    private static async Task WatchHostWindow(IntPtr hwnd, CancellationToken ct, Action commit) {
+        if (hwnd == IntPtr.Zero) {
+            return;
+        }
+
+        try {
+            while (!ct.IsCancellationRequested && NativeSecurity.IsWindow(hwnd)) {
+                await Task.Delay(100, ct);
+            }
+
+            if (!ct.IsCancellationRequested) {
+                commit();
+            }
+        } catch (OperationCanceledException) {
         }
     }
 

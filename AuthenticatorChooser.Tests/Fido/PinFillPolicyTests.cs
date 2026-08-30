@@ -29,7 +29,9 @@ public sealed class PinFillPolicyTests {
         PinFillPolicy.Decide(PinMode.Cache, true, true, 0, false, false).Should().Be(PinFillDecision.ManualFallback);
         PinFillPolicy.Decide(PinMode.Cache, true, true, 2, false, false).Should().Be(PinFillDecision.ManualFallback);
         PinFillPolicy.Decide(PinMode.Cache, true, true, null, false, false).Should().Be(PinFillDecision.ManualFallback);
-        PinFillPolicy.Decide(PinMode.Cache, false, true, 1, false, false).Should().Be(PinFillDecision.ManualFallback);
+        PinFillPolicy.Decide(PinMode.Cache, false, true, 1, false, false).Should().Be(PinFillDecision.LearnFromPrompt);
+        PinFillPolicy.Decide(PinMode.Cache, false, false, 1, false, false).Should().Be(PinFillDecision.ManualFallback);
+        PinFillPolicy.Decide(PinMode.Cache, true, false, 1, false, false).Should().Be(PinFillDecision.ManualFallback);
     }
 
     [Fact]

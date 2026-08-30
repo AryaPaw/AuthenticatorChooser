@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Windows.Automation;
 
 namespace AuthenticatorChooser.Windows11;
@@ -54,6 +55,37 @@ internal static class PinAutosubmit {
             }
 
             ((InvokePattern) pattern).Invoke();
+            return true;
+        } catch (ElementNotAvailableException) {
+            return false;
+        } catch (InvalidOperationException) {
+            return false;
+        }
+    }
+
+    public static bool TrySetValue(AutomationElement field, IntPtr bstrPin) {
+        if (bstrPin == IntPtr.Zero) {
+            return false;
+        }
+
+        string? pin = Marshal.PtrToStringBSTR(bstrPin);
+        if (string.IsNullOrEmpty(pin)) {
+            return false;
+        }
+
+        try {
+            field.SetFocus();
+        } catch (ElementNotAvailableException) {
+            return false;
+        } catch (InvalidOperationException) {
+        }
+
+        try {
+            if (!field.TryGetCurrentPattern(ValuePattern.Pattern, out object pattern)) {
+                return false;
+            }
+
+            ((ValuePattern) pattern).SetValue(pin);
             return true;
         } catch (ElementNotAvailableException) {
             return false;

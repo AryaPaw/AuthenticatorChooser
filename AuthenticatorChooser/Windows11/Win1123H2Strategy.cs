@@ -19,7 +19,7 @@ public class Win1123H2Strategy(ChooserOptions options): Win11Strategy(options) {
      * Otherwise, perform common checks like holding Shift and stopping if there are other options.
      * Finally, click Next.
      */
-    public override async Task handleWindow(string actualTitle, AutomationElement fidoEl, AutomationElement outerScrollViewer, bool isShiftDown) {
+    public override async Task handleWindow(string actualTitle, AutomationElement fidoEl, AutomationElement outerScrollViewer, bool isShiftDown, IntPtr hostWindow = default) {
         CancellationTokenSource stopFinding = new();
 
         /*
@@ -28,18 +28,16 @@ public class Win1123H2Strategy(ChooserOptions options): Win11Strategy(options) {
          */
         Task<IReadOnlyCollection<AutomationElement>?> authenticatorChoicesTask = findAuthenticatorChoices(outerScrollViewer, stopFinding.Token);
 
-        Task<AutomationElement?> pinFieldTask = PinFillPolicy.WantsPinDialog(options.pinMode, options.autoSubmitPinLength)
-            && I18N.getStrings(I18N.Key.MAKING_SURE_ITS_YOU).Contains(actualTitle, StringComparer.CurrentCulture)
+        bool makingSureItsYou = I18N.getStrings(I18N.Key.MAKING_SURE_ITS_YOU).Contains(actualTitle, StringComparer.CurrentCulture);
+        Task<AutomationElement?> pinFieldTask = PinLearnPolicy.LookForPinOnTitle(options.pinMode, options.autoSubmitPinLength, makingSureItsYou)
             ? findPinField(outerScrollViewer, stopFinding.Token) : new TaskCompletionSource<AutomationElement?>().Task;
 
         await Task.WhenAny(authenticatorChoicesTask, pinFieldTask);
         await stopFinding.CancelAsync();
 
-        if (pinFieldTask.IsCompletedSuccessfully) {
-            if (pinFieldTask.Result is { } pinField) {
-                LOGGER.Debug("Found PIN field");
-                handlePinPrompt(fidoEl, outerScrollViewer, pinField);
-            }
+        if (pinFieldTask.IsCompletedSuccessfully && pinFieldTask.Result is { } pinField) {
+            LOGGER.Debug("Found PIN field");
+            handlePinPrompt(fidoEl, outerScrollViewer, pinField, hostWindow);
             return;
         }
         if (authenticatorChoicesTask is not { IsCompletedSuccessfully: true, Result: { } authenticatorChoices }) {

@@ -6,6 +6,7 @@ public sealed class AppState {
     private bool enabled = true;
     private bool skipAllNonSecurityKeyOptions;
     private int? autoSubmitPinLength;
+    private int? learnedPinLength;
     private PinMode pinMode = PinMode.Off;
     private PinCacheLifetime pinCacheLifetime = PinCacheLifetime.TwoMinutes;
     private List<AuthenticatorPriorityRule> priorityRules = AuthenticatorPriorityCatalog.CreateDefaults().Select(rule => rule.Clone()).ToList();
@@ -46,6 +47,15 @@ public sealed class AppState {
             }
         }
         set => Set(ref autoSubmitPinLength, PinPolicy.Normalize(value));
+    }
+
+    public int? LearnedPinLength {
+        get {
+            lock (gate) {
+                return learnedPinLength;
+            }
+        }
+        set => Set(ref learnedPinLength, PinPolicy.Normalize(value));
     }
 
     public PinMode PinMode {
@@ -163,6 +173,7 @@ public sealed class AppState {
             enabled = settings.Enabled;
             skipAllNonSecurityKeyOptions = settings.SkipAllNonSecurityKeyOptions;
             autoSubmitPinLength = PinPolicy.Normalize(settings.AutoSubmitPinLength == 0 ? null : settings.AutoSubmitPinLength);
+            learnedPinLength = PinPolicy.Normalize(settings.LearnedPinLength == 0 ? null : settings.LearnedPinLength);
             pinMode = settings.PinMode;
             pinCacheLifetime = settings.PinCacheLifetime;
             priorityRules = AuthenticatorPriorityCatalog.EnsureBuiltIns(settings.PriorityRules);
@@ -185,6 +196,7 @@ public sealed class AppState {
                 Enabled = enabled,
                 SkipAllNonSecurityKeyOptions = skipAllNonSecurityKeyOptions,
                 AutoSubmitPinLength = autoSubmitPinLength ?? 0,
+                LearnedPinLength = learnedPinLength ?? 0,
                 PinMode = pinMode,
                 PinCacheLifetime = pinCacheLifetime,
                 PriorityRules = AuthenticatorPriorityCatalog.Clone(priorityRules),

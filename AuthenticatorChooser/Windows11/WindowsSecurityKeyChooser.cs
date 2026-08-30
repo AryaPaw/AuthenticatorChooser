@@ -75,7 +75,7 @@ public class WindowsSecurityKeyChooser(ChooserOptions options): AbstractSecurity
 
             IDisposable captured = activity;
             activity = null;
-            CompleteWindow(strategy.handleWindow(actualTitle!, fidoEl, outerScrollViewer, isShiftDown), captured);
+            CompleteWindow(strategy.handleWindow(actualTitle!, fidoEl, outerScrollViewer, isShiftDown, fidoPrompt.HWnd), captured);
 
         } catch (ElementNotAvailableException e) {
             LOGGER.Error(e, "Element in Windows Security dialog box disappeared before this program could interact with it, skipping this dialog box instance");

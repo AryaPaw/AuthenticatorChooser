@@ -11,6 +11,7 @@ public sealed class AppStateTests {
             Enabled = false,
             SkipAllNonSecurityKeyOptions = true,
             AutoSubmitPinLength = 6,
+            LearnedPinLength = 10,
             FileLogEnabled = true,
             LogFilename = "a.log",
             AutostartOnLogon = true,
@@ -23,6 +24,7 @@ public sealed class AppStateTests {
         round.Enabled.Should().BeFalse();
         round.SkipAllNonSecurityKeyOptions.Should().BeTrue();
         round.AutoSubmitPinLength.Should().Be(6);
+        round.LearnedPinLength.Should().Be(10);
         round.FileLogEnabled.Should().BeTrue();
         round.LogFilename.Should().Be("a.log");
         round.AutostartOnLogon.Should().BeTrue();
@@ -63,6 +65,9 @@ public sealed class AppStateTests {
         options.skipAllNonSecurityKeyOptions.Should().BeTrue();
         state.AutoSubmitPinLength = 6;
         options.autoSubmitPinLength.Should().Be(6);
+        state.LearnedPinLength = 10;
+        options.learnedPinLength.Should().Be(10);
+        PinCacheUxPolicy.SubmitLength(PinMode.Cache, options.autoSubmitPinLength, options.learnedPinLength).Should().Be(10);
         options.skipAllNonSecurityKeyOptions.Should().BeTrue();
         options.wantsAggressiveTitles.Should().BeTrue();
         state.SkipAllNonSecurityKeyOptions = false;

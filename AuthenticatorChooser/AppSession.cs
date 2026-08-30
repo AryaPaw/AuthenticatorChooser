@@ -186,6 +186,7 @@ public sealed class AppSession: IDisposable {
 
             using PinCache pinCache = new();
             pinCache.Lifetime = state.PinCacheLifetime;
+            using ForegroundPinKeyHook pinKeys = new();
             ChooserOptions options = new(
                 state,
                 pinCache,
@@ -196,7 +197,8 @@ public sealed class AppSession: IDisposable {
                 () => {
                     SettingsStore.EnsurePathAllowed(settingsPath(), allowedRoot());
                     SettingsStore.Save(settingsPath(), state.ToSettings());
-                });
+                },
+                pinKeys);
             using WindowOpeningListener windowOpeningListener = new WindowOpeningListenerImpl();
             WindowsSecurityKeyChooser securityKeyChooser = new(options);
 

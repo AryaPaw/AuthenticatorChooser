@@ -23,7 +23,7 @@ public class Win1125H2Strategy(ChooserOptions options): Win11Strategy(options) {
             I18N.getStrings(I18N.Key.CHOOSE_A_PASSKEY),
             I18N.getStrings(I18N.Key.SIGN_IN_WITH_A_PASSKEY));
 
-    public override async Task handleWindow(string actualTitle, AutomationElement fidoEl, AutomationElement outerScrollViewer, bool isShiftDown) {
+    public override async Task handleWindow(string actualTitle, AutomationElement fidoEl, AutomationElement outerScrollViewer, bool isShiftDown, IntPtr hostWindow = default) {
         if (Win1125H2ChallengePolicy.IsChooseAPasskeyTitle(actualTitle, I18N.getStrings(I18N.Key.CHOOSE_A_PASSKEY))) {
             if (await findAuthenticatorChoices(outerScrollViewer) is not { } authenticatorChoices) return;
 
@@ -97,7 +97,7 @@ public class Win1125H2Strategy(ChooserOptions options): Win11Strategy(options) {
                 case Win1125H2ChallengeAction.LeaveAlone:
                     return;
                 case Win1125H2ChallengeAction.AutosubmitSecurityKeyPin:
-                    handlePinPrompt(fidoEl, outerScrollViewer);
+                    handlePinPrompt(fidoEl, outerScrollViewer, hostWindow: hostWindow);
                     return;
                 case Win1125H2ChallengeAction.AlreadySecurityKey:
                     LOGGER.Debug("The current authenticator is already a security key, so there is nothing to do on this dialog");

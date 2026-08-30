@@ -8,7 +8,7 @@
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
         <!-- UIA/COM/task-scheduler glue and WinExe entry are exercised by live Windows Security prompts, not CI -->
-        <ExcludeByFile>**/LocalizedStrings.Designer.cs,**/*LibraryImports.g.cs,**/Startup.cs,**/WindowsSecurityKeyChooser.cs,**/Win11Strategy.cs,**/Win1123H2Strategy.cs,**/Win1125H2Strategy.cs,**/ShellHook.cs,**/PinAutosubmit.cs,**/ScheduledTaskAutostartService.cs,**/NativeUia.cs,**/Fido2Devices.cs,**/WindowTrust.cs,**/NativeSecurity.cs</ExcludeByFile>
+        <ExcludeByFile>**/LocalizedStrings.Designer.cs,**/*LibraryImports.g.cs,**/Startup.cs,**/WindowsSecurityKeyChooser.cs,**/Win11Strategy.cs,**/Win1123H2Strategy.cs,**/Win1125H2Strategy.cs,**/ShellHook.cs,**/PinAutosubmit.cs,**/ScheduledTaskAutostartService.cs,**/NativeUia.cs,**/Fido2Devices.cs,**/WindowTrust.cs,**/NativeSecurity.cs,**/ForegroundPinKeyHook.cs</ExcludeByFile>
         <Threshold>90</Threshold>
         <ThresholdType>line</ThresholdType>
         <CoverletOutputFormat>cobertura</CoverletOutputFormat>

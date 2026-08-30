@@ -12,6 +12,8 @@ public sealed class AppSettings {
 
     public int AutoSubmitPinLength { get; set; }
 
+    public int LearnedPinLength { get; set; }
+
     public PinMode PinMode { get; set; } = PinMode.Off;
 
     public PinCacheLifetime PinCacheLifetime { get; set; } = PinCacheLifetime.TwoMinutes;

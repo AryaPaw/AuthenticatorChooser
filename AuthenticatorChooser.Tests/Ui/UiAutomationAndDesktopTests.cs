@@ -3,6 +3,7 @@ using AuthenticatorChooser.Windows11;
 using FluentAssertions;
 using ManagedWinapi.Windows;
 using NSubstitute;
+using System.Runtime.InteropServices;
 using System.Windows.Automation;
 using System.Windows.Forms;
 
@@ -40,6 +41,13 @@ public sealed class UiAutomationAndDesktopTests: IDisposable {
             AutomationElement el = AutomationElement.FromHandle(form.Handle);
             PinAutosubmit.TryInvokeOk(el).Should().BeFalse();
             PinAutosubmit.TryReadLength(AutomationElement.FromHandle(box.Handle)).Should().BeGreaterThanOrEqualTo(0);
+            IntPtr bstr = Marshal.StringToBSTR("2468");
+            try {
+                PinAutosubmit.TrySetValue(AutomationElement.FromHandle(box.Handle), bstr).Should().BeTrue();
+                box.Text.Should().Be("2468");
+            } finally {
+                Marshal.FreeBSTR(bstr);
+            }
             form.Close();
         });
     }

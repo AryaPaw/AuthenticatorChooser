@@ -20,6 +20,7 @@ public sealed class SettingsResetTests: IDisposable {
             Enabled = false,
             SkipAllNonSecurityKeyOptions = true,
             AutoSubmitPinLength = 8,
+            LearnedPinLength = 10,
             FileLogEnabled = true,
             LogFilename = "debug.log",
             AutostartOnLogon = false,
@@ -35,6 +36,7 @@ public sealed class SettingsResetTests: IDisposable {
         state.Enabled.Should().BeTrue();
         state.SkipAllNonSecurityKeyOptions.Should().BeFalse();
         state.AutoSubmitPinLength.Should().BeNull();
+        state.LearnedPinLength.Should().BeNull();
         state.PinMode.Should().Be(PinMode.Off);
         state.PinCacheLifetime.Should().Be(PinCacheLifetime.TwoMinutes);
         AuthenticatorPriorityCatalog.ActionFor(state.PriorityRules, AuthenticatorPriorityCatalog.UsbId)
@@ -45,6 +47,7 @@ public sealed class SettingsResetTests: IDisposable {
         state.AutoUpdateEnabled.Should().BeTrue();
         state.LastUpdateCheckUtc.Should().BeNull();
         SettingsStore.Load(settingsPath).AutoSubmitPinLength.Should().Be(0);
+        SettingsStore.Load(settingsPath).LearnedPinLength.Should().Be(0);
         autostart.Received(1).Register(Path.Combine(root, "app.exe"), null);
         autostart.DidNotReceive().Unregister();
     }

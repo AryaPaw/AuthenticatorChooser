@@ -15,7 +15,7 @@ internal sealed class NativeUia: INativePinFiller {
 
     private const int UiaValuePatternId = 10002;
     private const int UiaIsPasswordPropertyId = 30019;
-    private const int TreeScopeDescendants = 0x4;
+    private const int TreeScopeElementAndDescendants = 0x5;
 
     public static NativeUia Shared { get; } = new();
 
@@ -26,42 +26,65 @@ internal sealed class NativeUia: INativePinFiller {
 
         try {
             IUIAutomation automation = (IUIAutomation) (object) new CUIAutomation();
-            automation.ElementFromHandle(windowHandle, out IUIAutomationElement? root);
-            if (root is null) {
-                Logger.Warn("Native UIA found no element for the FIDO dialog window");
-                return false;
-            }
-
             automation.CreatePropertyCondition(UiaIsPasswordPropertyId, true, out IUIAutomationCondition? isPassword);
             if (isPassword is null) {
                 Logger.Warn("Native UIA could not build the IsPassword condition");
                 return false;
             }
 
-            root.FindFirst(TreeScopeDescendants, isPassword, out IUIAutomationElement? target);
-            if (target is null) {
-                Logger.Warn("Native UIA found no password field under the FIDO dialog window");
-                return false;
+            foreach (IntPtr hwnd in EnumerateHwnds(windowHandle)) {
+                if (TrySetOnWindow(automation, isPassword, hwnd, bstrPin)) {
+                    return true;
+                }
             }
 
-            Guid valuePatternIid = typeof(IUIAutomationValuePattern).GUID;
-            target.GetCurrentPatternAs(UiaValuePatternId, ref valuePatternIid, out IntPtr patternPtr);
-            if (patternPtr == IntPtr.Zero) {
-                Logger.Warn("The FIDO PIN field does not expose the native Value pattern");
-                return false;
-            }
-
-            try {
-                ((IUIAutomationValuePattern) Marshal.GetObjectForIUnknown(patternPtr)).SetValue(bstrPin);
-                return true;
-            } finally {
-                Marshal.Release(patternPtr);
-            }
+            Logger.Warn("Native UIA found no password field under the FIDO dialog window");
+            return false;
         } catch (Exception exception) when (exception is not OutOfMemoryException) {
             Logger.Warn("Native UIA SetValue for the PIN field failed ({message})", exception.Message);
             return false;
         }
     }
+
+    private static bool TrySetOnWindow(IUIAutomation automation, IUIAutomationCondition isPassword, IntPtr hwnd, IntPtr bstrPin) {
+        automation.ElementFromHandle(hwnd, out IUIAutomationElement? root);
+        if (root is null) {
+            return false;
+        }
+
+        root.FindFirst(TreeScopeElementAndDescendants, isPassword, out IUIAutomationElement? target);
+        if (target is null) {
+            return false;
+        }
+
+        Guid valuePatternIid = typeof(IUIAutomationValuePattern).GUID;
+        target.GetCurrentPatternAs(UiaValuePatternId, ref valuePatternIid, out IntPtr patternPtr);
+        if (patternPtr == IntPtr.Zero) {
+            return false;
+        }
+
+        try {
+            ((IUIAutomationValuePattern) Marshal.GetObjectForIUnknown(patternPtr)).SetValue(bstrPin);
+            return true;
+        } finally {
+            Marshal.Release(patternPtr);
+        }
+    }
+
+    private static List<IntPtr> EnumerateHwnds(IntPtr root) {
+        List<IntPtr> hwnds = [root];
+        EnumChildWindows(root, (hwnd, _) => {
+            hwnds.Add(hwnd);
+            return true;
+        }, IntPtr.Zero);
+        return hwnds;
+    }
+
+    private delegate bool EnumChildProc(IntPtr hWnd, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnumChildWindows(IntPtr hWndParent, EnumChildProc lpEnumFunc, IntPtr lParam);
 
     [ComImport]
     [Guid("ff48dba4-60ef-4201-aa87-54103eef594e")]

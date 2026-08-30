@@ -5,7 +5,7 @@ namespace AuthenticatorChooser.Fido;
 
 public sealed class ChooserOptions {
 
-    public ChooserOptions(AppState state) : this(state, null, null, null, null, null, null) { }
+    public ChooserOptions(AppState state) : this(state, null, null, null, null, null, null, null) { }
 
     internal ChooserOptions(
         AppState state,
@@ -14,7 +14,8 @@ public sealed class ChooserOptions {
         INativePinFiller? pinFiller,
         IFido2DeviceCounter? devices,
         IDebuggerProbe? debugger,
-        Action? persist) {
+        Action? persist,
+        IPinKeyHook? pinKeyHook = null) {
         this.state = state;
         this.pinCache = pinCache;
         this.windowTrust = windowTrust ?? WindowTrust.Shared;
@@ -22,6 +23,7 @@ public sealed class ChooserOptions {
         this.devices = devices ?? new Fido2Devices();
         this.debugger = debugger ?? new NativeDebuggerProbe();
         this.persist = persist;
+        this.pinKeyHook = pinKeyHook ?? new NullPinKeyHook();
     }
 
     public AppState state { get; }
@@ -38,11 +40,15 @@ public sealed class ChooserOptions {
 
     internal Action? persist { get; }
 
+    internal IPinKeyHook pinKeyHook { get; }
+
     public Stopwatch overallStopwatch { get; } = new();
 
     public bool skipAllNonSecurityKeyOptions => state.SkipAllNonSecurityKeyOptions;
 
     public int? autoSubmitPinLength => state.AutoSubmitPinLength;
+
+    public int? learnedPinLength => state.LearnedPinLength;
 
     public PinMode pinMode => state.PinMode;
 

@@ -18,11 +18,8 @@ internal sealed class StatusPinBlock: TableLayoutPanel {
     private Label pinLiveCount = null!;
     private Label pinSavedSummary = null!;
     private ThemedButton pinToggle = null!;
-    private TextBox pinCacheValue = null!;
-    private TextBox pinCacheConfirm = null!;
     private ComboBox lifetimeBox = null!;
     private Label cacheStatus = null!;
-    private ThemedButton cacheStore = null!;
     private ThemedButton cacheForget = null!;
     private readonly System.Windows.Forms.Timer countdown = new() { Interval = 1000 };
     private bool syncing;
@@ -45,7 +42,7 @@ internal sealed class StatusPinBlock: TableLayoutPanel {
 
         offMode = ModeRadio("Off", "pinModeOff");
         lengthMode = ModeRadio("Submit by length", "pinModeLength");
-        cacheMode = ModeRadio("Temporary PIN cache", "pinModeCache");
+        cacheMode = ModeRadio("Remember PIN this session", "pinModeCache");
         Add(offMode, 6);
         Add(lengthMode, 6);
         Add(cacheMode, 12);
@@ -107,11 +104,7 @@ internal sealed class StatusPinBlock: TableLayoutPanel {
 
     public void ClearPinSample() {
         pinSample.Clear();
-        pinCacheValue.Clear();
-        pinCacheConfirm.Clear();
     }
-
-    public PinCacheStoreResult StoreCachedPinForTests() => StoreCachedPin();
 
     protected override void Dispose(bool disposing) {
         if (disposing) {
@@ -170,14 +163,8 @@ internal sealed class StatusPinBlock: TableLayoutPanel {
 
     private Panel BuildCachePanel() {
         TableLayoutPanel stack = HiddenStack();
-        Label confirmHint = WrapLabel("Yes, type the same USB-key PIN twice. The second field is confirmation. It stays in this process only and is forgotten at lock, sleep, pause, reset, or Exit.");
+        Label confirmHint = WrapLabel("Type the USB-key PIN in the next Windows Security prompt and press Enter once. After that, later prompts in this session are filled for you. After a restart, type it again: OK is pressed when the length matches what you typed. The PIN is never written to disk. Forgotten at lock, sleep, pause, reset, or Exit.");
         stack.Controls.Add(confirmHint, 0, stack.RowCount++);
-        stack.Controls.Add(FieldLabel("PIN", "pinCacheValueLabel"), 0, stack.RowCount++);
-        pinCacheValue = Masked("pinCacheValue");
-        stack.Controls.Add(pinCacheValue, 0, stack.RowCount++);
-        stack.Controls.Add(FieldLabel("Confirm PIN", "pinCacheConfirmLabel"), 0, stack.RowCount++);
-        pinCacheConfirm = Masked("pinCacheConfirm");
-        stack.Controls.Add(pinCacheConfirm, 0, stack.RowCount++);
         stack.Controls.Add(FieldLabel("Keep cached PIN", "pinCacheLifetimeLabel"), 0, stack.RowCount++);
         lifetimeBox = new ComboBox {
             DropDownStyle = ComboBoxStyle.DropDownList,
@@ -201,49 +188,16 @@ internal sealed class StatusPinBlock: TableLayoutPanel {
             RefreshCacheStatus();
         };
         stack.Controls.Add(lifetimeBox, 0, stack.RowCount++);
-        FlowLayoutPanel buttons = new() {
-            AutoSize = true,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = true,
-            BackColor = UiTheme.Card,
-            Margin = new Padding(0, 0, 0, 8)
-        };
-        cacheStore = new ThemedButton("Cache PIN", true) { AccessibleName = "pinCacheStore" };
-        cacheForget = new ThemedButton("Forget now", false) { AccessibleName = "pinCacheForget" };
-        cacheStore.Click += (_, _) => StoreCachedPin();
+        cacheForget = new ThemedButton("Forget now", false) { AccessibleName = "pinCacheForget", Margin = new Padding(0, 0, 0, 8) };
         cacheForget.Click += (_, _) => {
             pinCache.Clear();
-            ClearPinSample();
             RefreshCacheStatus();
         };
-        buttons.Controls.AddRange([cacheStore, cacheForget]);
-        stack.Controls.Add(buttons, 0, stack.RowCount++);
-        cacheStatus = WrapLabel("PIN not cached", UiTheme.BodyBold, UiTheme.Ink);
+        stack.Controls.Add(cacheForget, 0, stack.RowCount++);
+        cacheStatus = WrapLabel(PinCacheUxPolicy.WaitingStatus(null), UiTheme.BodyBold, UiTheme.Ink);
         cacheStatus.AccessibleName = "pinCacheStatus";
         stack.Controls.Add(cacheStatus, 0, stack.RowCount++);
         return stack;
-    }
-
-    private PinCacheStoreResult StoreCachedPin() {
-        string first = pinCacheValue.Text;
-        string second = pinCacheConfirm.Text;
-        if (!string.Equals(first, second, StringComparison.Ordinal)) {
-            cacheStatus.Text = "The two PIN fields do not match. Nothing was cached.";
-            ClearPinSample();
-            return PinCacheStoreResult.RejectedLength;
-        }
-
-        PinCacheStoreResult result = pinCache.TryStore(first);
-        ClearPinSample();
-        cacheStatus.Text = result switch {
-            PinCacheStoreResult.Stored => CacheStatusText(),
-            PinCacheStoreResult.RejectedDebugger => "PIN cache refused because a debugger is attached.",
-            PinCacheStoreResult.RejectedDeviceCount => "PIN cache needs exactly one USB security key.",
-            PinCacheStoreResult.RejectedLength => $"Need {PinPolicy.MinLength}–{PinPolicy.MaxLength} characters. Nothing was cached.",
-            PinCacheStoreResult.RejectedEncrypt => "Windows could not protect the PIN in memory.",
-            _ => throw new InvalidOperationException($"Unhandled PIN cache store result {result}")
-        };
-        return result;
     }
 
     private void OnModeChecked(PinMode mode, RadioButton box) {
@@ -264,7 +218,7 @@ internal sealed class StatusPinBlock: TableLayoutPanel {
 
     private void RefreshCacheStatus() {
         if (state.PinMode != PinMode.Cache) {
-            cacheStatus.Text = "PIN not cached";
+            cacheStatus.Text = PinCacheUxPolicy.WaitingStatus(state.LearnedPinLength);
             return;
         }
 
@@ -273,7 +227,7 @@ internal sealed class StatusPinBlock: TableLayoutPanel {
 
     private string CacheStatusText() {
         if (!pinCache.HasCached) {
-            return "PIN not cached";
+            return PinCacheUxPolicy.WaitingStatus(state.LearnedPinLength);
         }
 
         int? remaining = pinCache.RemainingSeconds;
@@ -285,7 +239,7 @@ internal sealed class StatusPinBlock: TableLayoutPanel {
             return "PIN cached until lock or exit";
         }
 
-        return $"PIN cached — {remaining}s remaining";
+        return $"PIN cached - {remaining}s remaining";
     }
 
     private void ApplyPinModeView(PinModeView view) {
@@ -307,18 +261,6 @@ internal sealed class StatusPinBlock: TableLayoutPanel {
             BackColor = UiTheme.Card,
             AccessibleName = name,
             Margin = Padding.Empty
-        };
-
-    private TextBox Masked(string name) =>
-        new() {
-            Width = 280,
-            Height = 32,
-            Font = UiTheme.Body,
-            UseSystemPasswordChar = true,
-            MaxLength = PinPolicy.MaxLength,
-            AccessibleName = name,
-            CausesValidation = false,
-            Margin = new Padding(0, 0, 0, 10)
         };
 
     private static Label FieldLabel(string text, string accessibleName) =>

@@ -4,6 +4,7 @@ public enum PinFillDecision {
     DoNothing,
     WatchLength,
     FillCache,
+    LearnFromPrompt,
     RefuseAndClear,
     ManualFallback
 }
@@ -27,8 +28,12 @@ public static class PinFillPolicy {
                     return PinFillDecision.RefuseAndClear;
                 }
 
-                if (!trustedWindow || ctapHidCount != 1 || !hasCachedPin) {
+                if (!trustedWindow || ctapHidCount != 1) {
                     return PinFillDecision.ManualFallback;
+                }
+
+                if (!hasCachedPin) {
+                    return PinFillDecision.LearnFromPrompt;
                 }
 
                 return PinFillDecision.FillCache;

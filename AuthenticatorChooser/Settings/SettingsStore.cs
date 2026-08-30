@@ -41,6 +41,7 @@ public static class SettingsStore {
         Enabled = settings.Enabled,
         SkipAllNonSecurityKeyOptions = settings.SkipAllNonSecurityKeyOptions,
         AutoSubmitPinLength = settings.AutoSubmitPinLength,
+        LearnedPinLength = settings.LearnedPinLength,
         PinMode = settings.PinMode,
         PinCacheLifetime = settings.PinCacheLifetime,
         PriorityRules = AuthenticatorPriorityCatalog.Clone(settings.PriorityRules),
