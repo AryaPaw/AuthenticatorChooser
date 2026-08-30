@@ -6,11 +6,27 @@
 [![Windows 11](https://img.shields.io/badge/Windows-11-0078D4?logo=windows&logoColor=white)](https://www.microsoft.com/windows)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE.txt)
 
-Windows 11 asks “phone or security key?” every time you use a USB key. This program sits in the tray and clicks **Security key** for you. You can pause it, autostart it, and optionally autosubmit the key PIN by length (not Windows Hello).
+Windows 11 asks “phone or security key?” every time you use a USB key. This program sits in the tray and clicks **Security key** for you. You can pause it, autostart it, rank other authenticators, and optionally handle the USB-key PIN by length or a temporary in-memory cache (never saved to disk).
 
 <p align="center"><img src=".github/images/authenticator-prompt.png" alt="Windows asking to choose a phone or a security key" width="420" /></p>
 <p align="center"><img src=".github/images/demo.gif" alt="The phone screen disappearing as Security key is chosen" width="420" /></p>
 <p align="center"><img src=".github/images/status-window.png" alt="Status window" width="520" /></p>
+
+## Local preview (this repo)
+
+From the repo root, double-click `run-local.cmd` or:
+
+```ps1
+.\scripts\run-local.ps1
+```
+
+That stops the running tray process, publishes a single exe to `artifacts\local\AuthenticatorChooser.exe`, and opens the status window (`--show-window`). Use that folder as the local preview; do not dig through `bin\Release\net8.0-windows\win-x64\publish`.
+
+`artifacts\` is gitignored build output:
+
+- `artifacts\local\` — daily preview (this script)
+- `artifacts\AuthenticatorChooser-Setup-*.exe` — installer from release-gate
+- `artifacts\sandbox-in\` / `sandbox-out\` — Windows Sandbox checks, not for running the app
 
 ## Install
 
@@ -37,10 +53,14 @@ Closing the window does **not** quit; use **Exit**. A second launch opens the sa
 | | |
 | --- | --- |
 | **Pause** | Stops auto-clicks until you resume. Hold <kbd>Shift</kbd> to skip one click without pausing. |
-| **Always choose the USB security key** | Also skip Windows Hello and an already-paired phone. Off = only skip “pair a new phone”. |
-| **Autosubmit PIN** | Type a PIN of the length you use → **Turn on**. Only the length is stored. USB-key PIN only. |
+| **Authenticator priority** | Ordered **Select / Ask / Ignore** rules. USB is Select by default; pairing a new phone is Ignore; Windows Hello is Ask. Unknown names (password-manager plugins, a paired phone’s own label, …) stay on Ask and **stop** automatic clicks. Names are learned only after they appear in a real FIDO prompt, never auto-preferred. Open **Manage priorities** to reorder, add, or restore defaults. Built-in rows cannot be renamed or removed. |
+| **PIN: Off** | No PIN handling. |
+| **PIN: Submit by length** | Type a PIN of the length you use → **Turn on**. Only the character count is kept. USB-key PIN only. |
+| **PIN: Temporary PIN cache** | Enter the PIN twice, pick how long to remember it (1 / 2 / 5 / 10 minutes, or until lock or Exit), then **Cache PIN**. It is encrypted in this process with Windows `CryptProtectMemory` and is **never written to disk**. Lock, sleep, hibernate, Pause, Reset, a debugger, or Exit always forget it. Filling requires exactly one USB security key and a trusted Windows Security dialog (`CredentialUIBroker.exe` in System32, Microsoft-signed). If the PIN field comes back in the same prompt (likely a reject), the cache is cleared so a wrong PIN is not retried. |
 | **Start when I sign in** | Starts with Windows. |
 | **Install updates silently from GitHub** | Downloads and applies a newer Setup with no notifications. |
+
+`--skip-all-non-security-key-options` and `--autosubmit-pin-length` still work as session overrides. Skip-all forces USB **Select** and treats other known options as **Ignore** for that process.
 
 If it still highlights Security key but does not click Next, press <kbd>Enter</kbd>.
 
@@ -59,7 +79,7 @@ Output: `AuthenticatorChooser\bin\Release\net8.0-windows\win-x64\publish\Authent
 
 CI (`.github/workflows/dotnet.yml`) publishes the same non-self-contained build. A GitHub Release with Setup and portable exes is created when you push a `v*` tag.
 
-Unit tests cover settings, skip policy, title/caption mapping, autostart helpers, and the status presenter. UI Automation against live Windows Security dialogs is not part of CI.
+Unit tests cover settings migration, PIN cache policy, authenticator priority, title/caption mapping, autostart helpers, and the status window. UI Automation against live Windows Security dialogs is not part of CI.
 
 ## Related
 
