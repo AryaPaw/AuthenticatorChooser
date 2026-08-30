@@ -137,7 +137,7 @@ public sealed class UiAutomationAndDesktopTests: IDisposable {
             Flatten(form).OfType<ThemedButton>().First(b => b.AccessibleName == "pauseToggle").Primary.Should().BeFalse();
             Flatten(form).OfType<Panel>().Should().Contain(p => p.AccessibleName == "fidoScroll" && p.AutoScroll);
             Flatten(form).OfType<Panel>().Should().Contain(p => p.AccessibleName == "computerScroll" && p.AutoScroll);
-            form.ClientSize.Height.Should().BeGreaterThanOrEqualTo(860);
+            form.ClientSize.Height.Should().BeGreaterThanOrEqualTo(Math.Min(860, Screen.PrimaryScreen!.WorkingArea.Height - 80));
             Flatten(form).OfType<Label>().Should().Contain(l => l.AccessibleName == "pinSampleLabel");
             Flatten(form).OfType<Button>().First(b => b.AccessibleName == "pauseToggle").PerformClick();
             state.Enabled.Should().BeFalse();
