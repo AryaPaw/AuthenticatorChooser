@@ -28,6 +28,7 @@ public sealed class VersionSsotTests {
         workflow.Should().Contain("Read version from csproj");
         workflow.Should().Contain("AuthenticatorChooser.csproj");
         workflow.Should().NotContain("APP_VERSION: 0.7.0");
+        workflow.Should().NotContain("APP_VERSION: 0.8.0");
         workflow.Should().Contain("innosetup --version=6.7.1");
         workflow.Should().NotContain(".sha256");
         workflow.Should().NotContain("Get-FileHash");
