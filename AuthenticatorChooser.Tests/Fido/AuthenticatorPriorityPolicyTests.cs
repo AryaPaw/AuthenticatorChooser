@@ -97,6 +97,19 @@ public sealed class AuthenticatorPriorityPolicyTests {
     }
 
     [Fact]
+    public void TryAddCustom_AddsTrimmedNameAndRejectsEmptyOrDuplicate() {
+        List<AuthenticatorPriorityRule> rules = AuthenticatorPriorityCatalog.CreateDefaults().Select(rule => rule.Clone()).ToList();
+        AuthenticatorPriorityCatalog.TryAddCustom(rules, "  1Password  ", out AuthenticatorPriorityRule? added)
+            .Should().Be(PriorityNameAddStatus.Added);
+        added!.DisplayName.Should().Be("1Password");
+        added.BuiltIn.Should().BeFalse();
+        added.Action.Should().Be(AuthenticatorRuleAction.Ask);
+        AuthenticatorPriorityCatalog.TryAddCustom(rules, "1password", out _).Should().Be(PriorityNameAddStatus.Duplicate);
+        AuthenticatorPriorityCatalog.TryAddCustom(rules, "   ", out _).Should().Be(PriorityNameAddStatus.Empty);
+        AuthenticatorPriorityCatalog.TryAddCustom(rules, null, out _).Should().Be(PriorityNameAddStatus.Empty);
+    }
+
+    [Fact]
     public void EnsureBuiltIns_RepairsMissingAndEmptyNames() {
         List<AuthenticatorPriorityRule> repaired = AuthenticatorPriorityCatalog.EnsureBuiltIns([
             new AuthenticatorPriorityRule {

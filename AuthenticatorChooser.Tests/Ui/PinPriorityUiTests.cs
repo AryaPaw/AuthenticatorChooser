@@ -71,6 +71,16 @@ public sealed class PinPriorityUiTests {
             form.Result[1].Id.Should().Be(AuthenticatorPriorityCatalog.UsbId);
             Flatten(form).OfType<Button>().Single(b => b.AccessibleName == "priorityUp").PerformClick();
             form.Result[0].Id.Should().Be(AuthenticatorPriorityCatalog.UsbId);
+            list.SelectedIndex = 0;
+            name.Enabled.Should().BeTrue();
+            name.Clear();
+            Flatten(form).OfType<Button>().Single(b => b.AccessibleName == "priorityAdd").PerformClick();
+            Flatten(form).OfType<Label>().Single(l => l.AccessibleName == "priorityStatus").Text.Should().Contain("Type the exact name");
+            name.Text = "USB security key";
+            Flatten(form).OfType<Button>().Single(b => b.AccessibleName == "priorityAdd").PerformClick();
+            Flatten(form).OfType<Label>().Single(l => l.AccessibleName == "priorityStatus").Text.Should().Contain("already");
+            Flatten(form).OfType<Label>().Select(l => l.Text).Should().Contain("When this row appears");
+            Flatten(form).OfType<Label>().Select(l => l.Text).Should().Contain("Custom name to add");
             form.Close();
         });
     }

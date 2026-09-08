@@ -12,3 +12,9 @@ public enum AuthenticatorRuleAction {
     Ask,
     Ignore
 }
+
+public enum PriorityNameAddStatus {
+    Added,
+    Empty,
+    Duplicate
+}

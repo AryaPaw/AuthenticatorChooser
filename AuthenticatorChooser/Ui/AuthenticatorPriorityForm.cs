@@ -9,6 +9,7 @@ internal sealed class AuthenticatorPriorityForm: Form {
     private readonly ListBox list = new();
     private readonly ComboBox actionBox = new();
     private readonly TextBox nameBox = new();
+    private readonly Label status = new();
     private bool applying;
 
     public AuthenticatorPriorityForm(IEnumerable<AuthenticatorPriorityRule> current) {
@@ -19,8 +20,8 @@ internal sealed class AuthenticatorPriorityForm: Form {
         BackColor = UiTheme.Surface;
         FormBorderStyle = FormBorderStyle.Sizable;
         StartPosition = FormStartPosition.CenterParent;
-        MinimumSize = new Size(560, 480);
-        ClientSize = new Size(600, 520);
+        MinimumSize = new Size(600, 540);
+        ClientSize = new Size(640, 580);
         Padding = new Padding(UiTheme.PagePad);
         ShowInTaskbar = false;
         AutoScaleMode = AutoScaleMode.Dpi;
@@ -39,8 +40,8 @@ internal sealed class AuthenticatorPriorityForm: Form {
 
         Label hint = new() {
             AutoSize = true,
-            MaximumSize = new Size(540, 0),
-            Text = "First matching non-Ignore rule wins. Unknown names stop automatic selection (Ask). Built-in rows cannot be renamed or removed.",
+            MaximumSize = new Size(580, 0),
+            Text = "The list is checked from top to bottom. Select auto-clicks that option. Ask leaves the Windows prompt alone. Ignore skips it. Unknown names stay on Ask until you add them. Built-in rows cannot be renamed or removed.",
             Font = UiTheme.Caption,
             ForeColor = UiTheme.Muted,
             Margin = new Padding(0, 0, 0, 12)
@@ -58,30 +59,37 @@ internal sealed class AuthenticatorPriorityForm: Form {
             Dock = DockStyle.Fill,
             AutoSize = true,
             ColumnCount = 1,
-            RowCount = 2,
+            RowCount = 4,
             Margin = new Padding(0, 12, 0, 12)
         };
         editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-        FlowLayoutPanel fields = new() {
-            AutoSize = true,
-            WrapContents = true,
-            Padding = Padding.Empty,
-            Margin = new Padding(0, 0, 0, 8)
-        };
         actionBox.DropDownStyle = ComboBoxStyle.DropDownList;
         actionBox.AccessibleName = "priorityAction";
+        actionBox.AccessibleDescription = "What to do when the selected row appears in Windows Security";
         actionBox.FlatStyle = FlatStyle.System;
-        actionBox.Width = 120;
-        actionBox.Margin = new Padding(0, 0, 8, 0);
+        actionBox.Width = 180;
         actionBox.Items.AddRange(["Select", "Ask", "Ignore"]);
         actionBox.SelectedIndexChanged += (_, _) => ApplyAction();
-        nameBox.Width = 200;
+
+        nameBox.Width = 280;
         nameBox.Height = UiTheme.ButtonHeight;
         nameBox.AccessibleName = "priorityName";
-        nameBox.Margin = new Padding(0, 0, 8, 0);
-        fields.Controls.AddRange([actionBox, nameBox]);
+        nameBox.BorderStyle = BorderStyle.FixedSingle;
+        nameBox.BackColor = UiTheme.Card;
+        nameBox.ForeColor = UiTheme.Ink;
+        nameBox.PlaceholderText = "Exact name from the Windows prompt";
+
+        status.AutoSize = true;
+        status.MaximumSize = new Size(580, 0);
+        status.AccessibleName = "priorityStatus";
+        status.Font = UiTheme.Caption;
+        status.ForeColor = UiTheme.Muted;
+        status.Margin = new Padding(0, 0, 0, 8);
+        status.Text = "Add a custom name independently of the selected row. The dropdown only changes that row.";
 
         FlowLayoutPanel tools = new() {
             AutoSize = true,
@@ -101,11 +109,14 @@ internal sealed class AuthenticatorPriorityForm: Form {
         restore.Click += (_, _) => {
             rules.Clear();
             rules.AddRange(AuthenticatorPriorityCatalog.CreateDefaults().Select(rule => rule.Clone()));
+            SetStatus("Restored the built-in rows.", false);
             RefreshList(0);
         };
         tools.Controls.AddRange([add, remove, up, down, restore]);
-        editor.Controls.Add(fields, 0, 0);
-        editor.Controls.Add(tools, 0, 1);
+        editor.Controls.Add(LabeledRow("When this row appears", actionBox), 0, 0);
+        editor.Controls.Add(LabeledRow("Custom name to add", nameBox), 0, 1);
+        editor.Controls.Add(status, 0, 2);
+        editor.Controls.Add(tools, 0, 3);
 
         FlowLayoutPanel buttons = new() {
             AutoSize = true,
@@ -130,10 +141,44 @@ internal sealed class AuthenticatorPriorityForm: Form {
 
     public IReadOnlyList<AuthenticatorPriorityRule> Result => AuthenticatorPriorityCatalog.Clone(rules);
 
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData) {
+        if (keyData == Keys.Enter && nameBox.Focused) {
+            AddName();
+            return true;
+        }
+
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    private static TableLayoutPanel LabeledRow(string caption, Control field) {
+        TableLayoutPanel row = new() {
+            AutoSize = true,
+            ColumnCount = 2,
+            RowCount = 1,
+            Dock = DockStyle.Fill,
+            Margin = new Padding(0, 0, 0, 8)
+        };
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        Label label = new() {
+            AutoSize = true,
+            Text = caption,
+            Font = UiTheme.BodyBold,
+            ForeColor = UiTheme.Ink,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 8, 8, 0)
+        };
+        field.Anchor = AnchorStyles.Left | AnchorStyles.Top;
+        field.Margin = new Padding(0, 4, 0, 0);
+        row.Controls.Add(label, 0, 0);
+        row.Controls.Add(field, 1, 0);
+        return row;
+    }
+
     private void RefreshList(int selected) {
         list.Items.Clear();
         foreach (AuthenticatorPriorityRule rule in rules) {
-            string kind = rule.BuiltIn ? "built-in" : "learned";
+            string kind = rule.BuiltIn ? "built-in" : "custom";
             list.Items.Add($"{rule.DisplayName} — {rule.Action} ({kind})");
         }
 
@@ -154,7 +199,6 @@ internal sealed class AuthenticatorPriorityForm: Form {
 
         AuthenticatorPriorityRule rule = rules[list.SelectedIndex];
         actionBox.SelectedItem = rule.Action.ToString();
-        nameBox.Enabled = !rule.BuiltIn;
         applying = false;
     }
 
@@ -172,33 +216,37 @@ internal sealed class AuthenticatorPriorityForm: Form {
     }
 
     private void AddName() {
-        string name = nameBox.Text.Trim();
-        if (name.Length == 0) {
-            return;
+        PriorityNameAddStatus result = AuthenticatorPriorityCatalog.TryAddCustom(rules, nameBox.Text, out AuthenticatorPriorityRule? added);
+        switch (result) {
+            case PriorityNameAddStatus.Empty:
+                SetStatus("Type the exact name shown in Windows Security, then click Add name.", true);
+                return;
+            case PriorityNameAddStatus.Duplicate:
+                SetStatus("That name is already in the list.", true);
+                return;
+            case PriorityNameAddStatus.Added:
+                nameBox.Clear();
+                SetStatus($"Added {added!.DisplayName} as Ask.", false);
+                RefreshList(rules.Count - 1);
+                return;
+            default:
+                throw new InvalidOperationException($"Unhandled priority add status {result}");
         }
-
-        if (rules.Any(rule => string.Equals(rule.DisplayName, name, StringComparison.OrdinalIgnoreCase))) {
-            return;
-        }
-
-        rules.Add(new AuthenticatorPriorityRule {
-            Id = "custom:" + Guid.NewGuid().ToString("N"),
-            Kind = AuthenticatorKind.External,
-            DisplayName = name,
-            Action = AuthenticatorRuleAction.Ask,
-            BuiltIn = false
-        });
-        nameBox.Clear();
-        RefreshList(rules.Count - 1);
     }
 
     private void RemoveSelected() {
-        if (list.SelectedIndex < 0 || rules[list.SelectedIndex].BuiltIn) {
+        if (list.SelectedIndex < 0) {
+            return;
+        }
+
+        if (rules[list.SelectedIndex].BuiltIn) {
+            SetStatus("Built-in rows cannot be removed.", true);
             return;
         }
 
         int index = list.SelectedIndex;
         rules.RemoveAt(index);
+        SetStatus("Removed the custom name.", false);
         RefreshList(Math.Max(0, index - 1));
     }
 
@@ -211,6 +259,11 @@ internal sealed class AuthenticatorPriorityForm: Form {
 
         (rules[index], rules[next]) = (rules[next], rules[index]);
         RefreshList(next);
+    }
+
+    private void SetStatus(string text, bool error) {
+        status.Text = text;
+        status.ForeColor = error ? UiTheme.Warning : UiTheme.Muted;
     }
 
 }

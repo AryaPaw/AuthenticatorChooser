@@ -71,6 +71,28 @@ public static class AuthenticatorPriorityCatalog {
         return match?.Action ?? AuthenticatorRuleAction.Ask;
     }
 
+    public static PriorityNameAddStatus TryAddCustom(List<AuthenticatorPriorityRule> rules, string? name, out AuthenticatorPriorityRule? added) {
+        added = null;
+        string trimmed = (name ?? "").Trim();
+        if (trimmed.Length == 0) {
+            return PriorityNameAddStatus.Empty;
+        }
+
+        if (rules.Any(rule => string.Equals(rule.DisplayName, trimmed, StringComparison.OrdinalIgnoreCase))) {
+            return PriorityNameAddStatus.Duplicate;
+        }
+
+        added = new AuthenticatorPriorityRule {
+            Id = "custom:" + Guid.NewGuid().ToString("N"),
+            Kind = AuthenticatorKind.External,
+            DisplayName = trimmed,
+            Action = AuthenticatorRuleAction.Ask,
+            BuiltIn = false
+        };
+        rules.Add(added);
+        return PriorityNameAddStatus.Added;
+    }
+
     public static string Summary(IEnumerable<AuthenticatorPriorityRule> rules) {
         List<AuthenticatorPriorityRule> list = rules.ToList();
         string usb = ActionFor(list, UsbId).ToString();
