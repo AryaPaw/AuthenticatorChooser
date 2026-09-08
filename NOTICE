@@ -1,0 +1,11 @@
+AuthenticatorChooser
+Copyright (c) Ben Hutchison
+Copyright (c) AryaPaw (fork modifications)
+
+This combined work is licensed under the GNU Affero General Public License
+version 3. A copy of the license is in License.txt.
+
+Portions of this work were originally published by Ben Hutchison under the
+Apache License, Version 2.0. Those original portions remain available under
+the Apache License; a copy is in LICENSES/Apache-2.0.txt. This notice
+satisfies Apache License section 4 attribution for the upstream work.

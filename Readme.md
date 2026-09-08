@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/AryaPaw/AuthenticatorChooser?logo=github)](https://github.com/AryaPaw/AuthenticatorChooser/releases/latest)
 [![.NET 8](https://img.shields.io/badge/.NET-8-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Windows 11](https://img.shields.io/badge/Windows-11-0078D4?logo=windows&logoColor=white)](https://www.microsoft.com/windows)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE.txt)
+[![License](https://img.shields.io/badge/License-AGPL_3.0-blue.svg)](License.txt)
 
 Windows 11 asks “phone or security key?” every time you use a USB key. This program sits in the tray and clicks **Security key** for you. You can pause it, autostart it, rank other authenticators, and optionally handle the USB-key PIN by length or a temporary in-memory cache (never saved to disk).
 
@@ -93,4 +93,4 @@ With this script installed, you will by default always be asked whether to save 
 
 [![Star History Chart](https://star-history.dera.page/svg?repos=AryaPaw/AuthenticatorChooser&type=Date)](https://github.com/AryaPaw/AuthenticatorChooser/stargazers)
 
-Original program © Ben Hutchison. This repository is an independent fork.
+Original program © Ben Hutchison (Apache-2.0). This repository is an independent fork licensed under [AGPL-3.0](License.txt). Upstream Apache-2.0 text is kept in `LICENSES/Apache-2.0.txt`. See `NOTICE`.

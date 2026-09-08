@@ -10,6 +10,7 @@
         <Version>0.8.1</Version>
         <Authors>AryaPaw</Authors>
         <Copyright>© 2026 Ben Hutchison; fork © 2026 $(Authors)</Copyright>
+        <PackageLicenseExpression>AGPL-3.0-only</PackageLicenseExpression>
         <Company>$(Authors)</Company>
         <UseWindowsForms>true</UseWindowsForms>
         <RollForward>major</RollForward>
