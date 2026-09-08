@@ -52,11 +52,10 @@ internal static class SilentUpdateRuntime {
                     feed,
                     probe,
                     requestExit,
-                    SilentUpdatePolicy.CheckInterval,
                     cancellationToken);
 
                 logger.Info("Silent update check finished with {outcome}", outcome);
-                if (outcome == SilentUpdateOutcome.Applied) {
+                if (outcome is SilentUpdateOutcome.Applied or SilentUpdateOutcome.NoUpdate) {
                     return;
                 }
 
@@ -86,7 +85,6 @@ internal static class SilentUpdateRuntime {
         IReleaseFeed feed,
         IInternetProbe probe,
         Action requestExit,
-        TimeSpan minInterval,
         CancellationToken cancellationToken) {
         string downloadDirectory = Path.Combine(
             Path.GetTempPath(),
@@ -97,7 +95,6 @@ internal static class SilentUpdateRuntime {
             state,
             AppVersion.Current,
             DateTime.UtcNow,
-            minInterval,
             Process.GetCurrentProcess().ProcessName,
             applicationDirectory,
             downloadDirectory,
@@ -123,7 +120,6 @@ internal static class SilentUpdateRuntime {
                 return SilentUpdatePolicy.FailedRetry;
             case SilentUpdateOutcome.NoUpdate:
             case SilentUpdateOutcome.Skipped:
-                return SilentUpdatePolicy.CheckInterval;
             case SilentUpdateOutcome.Applied:
                 return TimeSpan.Zero;
             default:

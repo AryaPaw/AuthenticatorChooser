@@ -4,8 +4,6 @@ namespace AuthenticatorChooser.Updates;
 
 internal static class SilentUpdatePolicy {
 
-    public static readonly TimeSpan CheckInterval = TimeSpan.FromHours(24);
-
     public static readonly TimeSpan BusyRetry = TimeSpan.FromMinutes(2);
 
     public static readonly TimeSpan FailedRetry = TimeSpan.FromHours(6);
@@ -47,14 +45,6 @@ internal static class SilentUpdatePolicy {
     }
 
     public static string SetupFileName(string rid) => $"AuthenticatorChooser-Setup-{rid}.exe";
-
-    public static bool ShouldPoll(DateTime? lastCheckUtc, DateTime nowUtc, TimeSpan minInterval) {
-        if (lastCheckUtc is null) {
-            return true;
-        }
-
-        return nowUtc - lastCheckUtc.Value >= minInterval;
-    }
 
     public static bool HasInnoUninstaller(string applicationDirectory) =>
         File.Exists(Path.Combine(applicationDirectory, "unins000.exe"));

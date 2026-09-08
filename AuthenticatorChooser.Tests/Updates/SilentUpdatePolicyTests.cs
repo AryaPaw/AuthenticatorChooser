@@ -63,14 +63,6 @@ public sealed class SilentUpdatePolicyTests {
     }
 
     [Fact]
-    public void ShouldPoll_RespectsInterval() {
-        DateTime now = new(2026, 8, 29, 12, 0, 0, DateTimeKind.Utc);
-        SilentUpdatePolicy.ShouldPoll(null, now, TimeSpan.FromHours(24)).Should().BeTrue();
-        SilentUpdatePolicy.ShouldPoll(now.AddHours(-25), now, TimeSpan.FromHours(24)).Should().BeTrue();
-        SilentUpdatePolicy.ShouldPoll(now.AddHours(-1), now, TimeSpan.FromHours(24)).Should().BeFalse();
-    }
-
-    [Fact]
     public void IsSafeSetupPath_RequiresKnownNameUnderTemp() {
         string root = Path.Combine(Path.GetTempPath(), "AuthenticatorChooserSilentTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);

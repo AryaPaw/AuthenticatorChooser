@@ -17,7 +17,6 @@ public sealed record SilentUpdateContext(
     AppState State,
     string CurrentVersion,
     DateTime UtcNow,
-    TimeSpan MinInterval,
     string ProcessName,
     string ApplicationDirectory,
     string DownloadDirectory,
@@ -45,10 +44,6 @@ public static class SilentUpdateCoordinator {
 
         if (!await context.Probe.IsReachable(context.CancellationToken)) {
             return SilentUpdateOutcome.Offline;
-        }
-
-        if (!SilentUpdatePolicy.ShouldPoll(context.State.LastUpdateCheckUtc, context.UtcNow, context.MinInterval)) {
-            return SilentUpdateOutcome.Skipped;
         }
 
         if (!Version.TryParse(context.CurrentVersion, out Version? current)) {

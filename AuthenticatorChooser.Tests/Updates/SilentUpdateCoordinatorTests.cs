@@ -102,13 +102,16 @@ public sealed class SilentUpdateCoordinatorTests: IDisposable {
     }
 
     [Fact]
-    public async Task RunOnce_SkipsWhenCheckedRecently() {
+    public async Task RunOnce_ChecksEvenWhenLastCheckWasRecent() {
         DateTime now = new(2026, 8, 29, 18, 0, 0, DateTimeKind.Utc);
         state.LastUpdateCheckUtc = now.AddHours(-1);
-        FakeFeed feed = new();
-        SilentUpdateOutcome outcome = await SilentUpdateCoordinator.RunOnce(Context("AuthenticatorChooser", feed, new FakeInstaller(), now));
-        outcome.Should().Be(SilentUpdateOutcome.Skipped);
-        feed.LatestCalls.Should().Be(0);
+        FakeFeed feed = new() {
+            Latest = new GitHubReleaseSnapshot("v0.7.0", false, ReleaseAssets("0.7.0"))
+        };
+        SilentUpdateOutcome outcome = await SilentUpdateCoordinator.RunOnce(Context("AuthenticatorChooser", feed, new FakeInstaller(), now, "0.7.0"));
+        outcome.Should().Be(SilentUpdateOutcome.NoUpdate);
+        feed.LatestCalls.Should().Be(1);
+        state.LastUpdateCheckUtc.Should().Be(now);
     }
 
     [Fact]
@@ -248,7 +251,6 @@ public sealed class SilentUpdateCoordinatorTests: IDisposable {
             state,
             currentVersion,
             now ?? new DateTime(2026, 8, 29, 18, 0, 0, DateTimeKind.Utc),
-            TimeSpan.FromHours(24),
             processName,
             appDir,
             tempDir,
