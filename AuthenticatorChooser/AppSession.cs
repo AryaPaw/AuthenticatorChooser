@@ -214,7 +214,8 @@ public sealed class AppSession: IDisposable {
             state.Report(ChooserEventKind.Waiting, "Waiting for Windows Security FIDO dialog boxes");
 
             using TrayIcon trayIcon = new(state, () => { }, () => { });
-            StatusForm form = new(state, autostart, processPath(), settingsPath(), allowedRoot(), trayIcon, ExitApp, pinCache);
+            using SemaphoreSlim updateGate = new(1, 1);
+            StatusForm form = new(state, autostart, processPath(), settingsPath(), allowedRoot(), trayIcon, ExitApp, pinCache, updateGate);
             trayIcon.AttachWindowActions(form.Reveal, ExitApp);
             _ = form.Handle;
             if (!state.TrayHintShown) {
@@ -224,7 +225,7 @@ public sealed class AppSession: IDisposable {
                 SettingsStore.Save(settingsPath(), state.ToSettings());
             }
 
-            SilentUpdateRuntime.Start(state, settingsPath(), allowedRoot(), processPath(), ExitFromBackground);
+            SilentUpdateRuntime.Start(state, settingsPath(), allowedRoot(), processPath(), ExitFromBackground, updateGate);
 
             Console.CancelKeyPress += (_, args) => {
                 args.Cancel = true;

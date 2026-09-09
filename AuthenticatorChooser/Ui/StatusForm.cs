@@ -14,6 +14,8 @@ public sealed class StatusForm: Form {
     private readonly Action exit;
     private readonly IPinCache pinCache;
     private readonly bool ownsPinCache;
+    private readonly SemaphoreSlim updateGate;
+    private readonly bool ownsUpdateGate;
     private readonly List<Label> wrappingLabels = [];
     private readonly Icon windowIcon;
     private TableLayoutPanel shell = null!;
@@ -22,6 +24,7 @@ public sealed class StatusForm: Form {
     private CheckBox autostartBox = null!;
     private CheckBox logBox = null!;
     private CheckBox autoUpdateBox = null!;
+    private Label updateCheckStatus = null!;
     private StatusPinBlock pinBlock = null!;
     private Label prioritySummary = null!;
     private StatusFooter footer = null!;
@@ -34,7 +37,7 @@ public sealed class StatusForm: Form {
     private bool syncing;
     private bool allowShow;
 
-    public StatusForm(AppState state, IAutostartService autostart, string executablePath, string settingsPath, string allowedRoot, TrayIcon trayIcon, Action exit, IPinCache? pinCache = null) {
+    public StatusForm(AppState state, IAutostartService autostart, string executablePath, string settingsPath, string allowedRoot, TrayIcon trayIcon, Action exit, IPinCache? pinCache = null, SemaphoreSlim? updateGate = null) {
         this.state = state;
         this.autostart = autostart;
         this.executablePath = executablePath;
@@ -45,6 +48,8 @@ public sealed class StatusForm: Form {
         ownsPinCache = pinCache is null;
         this.pinCache = pinCache ?? new PinCache();
         this.pinCache.Lifetime = state.PinCacheLifetime;
+        ownsUpdateGate = updateGate is null;
+        this.updateGate = updateGate ?? new SemaphoreSlim(1, 1);
         windowIcon = AppIcons.CreateKeyIcon();
 
         Text = nameof(AuthenticatorChooser);
@@ -114,6 +119,10 @@ public sealed class StatusForm: Form {
             state.Changed -= OnStateChanged;
             if (ownsPinCache) {
                 pinCache.Dispose();
+            }
+
+            if (ownsUpdateGate) {
+                updateGate.Dispose();
             }
         }
 
@@ -366,7 +375,10 @@ public sealed class StatusForm: Form {
             Persist();
         };
         Add(appStack, autoUpdateBox, 6);
-        Add(appStack, Wrap("When a newer GitHub Release exists, the installer is downloaded and applied in the background. No notifications.", UiTheme.Caption, UiTheme.Muted, UiTheme.Card), 16);
+        Add(appStack, Wrap("When a newer GitHub Release exists, the installer is downloaded and applied in the background. Check for updates still works if automatic updates are off.", UiTheme.Caption, UiTheme.Muted, UiTheme.Card), 12);
+        updateCheckStatus = Wrap("", UiTheme.Caption, UiTheme.Muted, UiTheme.Card);
+        updateCheckStatus.AccessibleName = "updateCheckStatus";
+        Add(appStack, updateCheckStatus, 10);
         FlowLayoutPanel appButtons = new() {
             AutoSize = true,
             FlowDirection = FlowDirection.LeftToRight,
@@ -375,6 +387,8 @@ public sealed class StatusForm: Form {
             Margin = Padding.Empty,
             Padding = Padding.Empty
         };
+        ThemedButton checkUpdates = new("Check for updates", false) { AccessibleName = "checkUpdates" };
+        checkUpdates.Click += async (_, _) => await CheckUpdatesManual();
         ThemedButton openLog = new("Open log", false);
         openLog.Click += (_, _) => {
             string logPath = Logging.ResolveLogPath(state.LogFilename, allowedRoot);
@@ -384,9 +398,11 @@ public sealed class StatusForm: Form {
                 MessageBox.Show(this, $"Log file not found yet:\n{logPath}", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         };
+        ThemedButton exportLog = new("Export log", false) { AccessibleName = "exportLog" };
+        exportLog.Click += (_, _) => ExportLog();
         ThemedButton reset = new("Reset settings", false) { AccessibleName = "resetSettings" };
         reset.Click += (_, _) => ResetSettings();
-        appButtons.Controls.AddRange([openLog, reset]);
+        appButtons.Controls.AddRange([checkUpdates, openLog, exportLog, reset]);
         Add(appStack, appButtons, 0);
         app.Controls.Add(appStack);
         scroll.Controls.Add(app);
@@ -544,6 +560,50 @@ public sealed class StatusForm: Form {
         };
         version.LinkClicked += (_, _) => SafeWeb.OpenHttps(AppCredits.ReleasesUrl);
         return version;
+    }
+
+    private async Task CheckUpdatesManual() {
+        if (!await updateGate.WaitAsync(0)) {
+            updateCheckStatus.Text = ManualUpdateCopy.AlreadyRunning;
+            return;
+        }
+
+        bool exitRequested = false;
+        SilentUpdateOutcome outcome = SilentUpdateOutcome.Failed;
+        try {
+            updateCheckStatus.Text = ManualUpdateCopy.Checking;
+            outcome = await SilentUpdateRuntime.CheckNow(
+                state,
+                true,
+                settingsPath,
+                allowedRoot,
+                executablePath,
+                () => exitRequested = true,
+                Startup.EXITING);
+        } catch (Exception exception) when (exception is not OutOfMemoryException) {
+            outcome = SilentUpdateOutcome.Failed;
+        } finally {
+            updateGate.Release();
+        }
+
+        updateCheckStatus.Text = ManualUpdateCopy.For(outcome);
+        if (exitRequested) {
+            exit();
+        }
+    }
+
+    private void ExportLog() {
+        string logPath = Logging.ResolveLogPath(state.LogFilename, allowedRoot);
+        if (!File.Exists(logPath)) {
+            MessageBox.Show(this, $"Log file not found yet:\n{logPath}", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        string destination = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            $"AuthenticatorChooser-{DateTime.Now:yyyyMMdd-HHmmss}.log");
+        File.Copy(logPath, destination, overwrite: true);
+        MessageBox.Show(this, $"Saved:\n{destination}", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private void ResetSettings() {

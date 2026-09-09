@@ -116,6 +116,8 @@ public sealed class UiAutomationAndDesktopTests: IDisposable {
             Flatten(form).OfType<Label>().Select(l => l.Text).Should().NotContain(t => t.Contains("·"));
             Flatten(form).OfType<LinkLabel>().Should().Contain(l => l.AccessibleName == "versionReleases" && l.Text.Contains("Version"));
             Flatten(form).OfType<CheckBox>().Should().Contain(c => c.AccessibleName == "autoUpdateEnabled");
+            Flatten(form).OfType<Button>().Should().Contain(b => b.AccessibleName == "checkUpdates");
+            Flatten(form).OfType<Button>().Should().Contain(b => b.AccessibleName == "exportLog");
             Flatten(form).OfType<Button>().Should().Contain(b => b.AccessibleName == "resetSettings");
             Flatten(form).OfType<Button>().Should().Contain(b => b.AccessibleName == "managePriorities");
             Flatten(form).OfType<Control>().Should().Contain(c => c.AccessibleName == "statusTabs");

@@ -8,12 +8,60 @@ namespace AuthenticatorChooser.Updates;
 [ExcludeFromCodeCoverage]
 internal static class SilentUpdateRuntime {
 
-    public static void Start(AppState state, string settingsPath, string allowedRoot, string processPath, Action requestExit) {
+    public static void Start(
+        AppState state,
+        string settingsPath,
+        string allowedRoot,
+        string processPath,
+        Action requestExit,
+        SemaphoreSlim updateGate) {
         if (!SilentUpdatePolicy.AllowsBackgroundProcess(Process.GetCurrentProcess().ProcessName)) {
             return;
         }
 
-        _ = Task.Run(() => Loop(state, settingsPath, allowedRoot, processPath, requestExit, Startup.EXITING));
+        _ = Task.Run(() => Loop(state, settingsPath, allowedRoot, processPath, requestExit, updateGate, Startup.EXITING));
+    }
+
+    public static async Task<SilentUpdateOutcome> CheckNow(
+        AppState state,
+        bool autoUpdateEnabled,
+        string settingsPath,
+        string allowedRoot,
+        string processPath,
+        Action requestExit,
+        CancellationToken cancellationToken) {
+        string? applicationDirectory = Path.GetDirectoryName(processPath);
+        if (string.IsNullOrWhiteSpace(applicationDirectory)) {
+            return SilentUpdateOutcome.Failed;
+        }
+
+        string downloadDirectory = Path.Combine(
+            Path.GetTempPath(),
+            nameof(AuthenticatorChooser),
+            "updates",
+            Guid.NewGuid().ToString("N"));
+        using GitHubReleaseFeed probe = new(GitHubReleaseFeed.CreateClient(
+            timeout: NetworkWaitPolicy.ProbeTimeout,
+            githubApi: false));
+        using GitHubReleaseFeed feed = new(GitHubReleaseFeed.CreateClient());
+        return await SilentUpdateCoordinator.RunOnce(new SilentUpdateContext(
+            state,
+            autoUpdateEnabled,
+            AppVersion.Current,
+            DateTime.UtcNow,
+            Process.GetCurrentProcess().ProcessName,
+            applicationDirectory,
+            downloadDirectory,
+            RuntimeInformation.ProcessArchitecture,
+            probe,
+            feed,
+            new CmdSilentSetupInstaller(),
+            () => {
+                SettingsStore.EnsurePathAllowed(settingsPath, allowedRoot);
+                SettingsStore.Save(settingsPath, state.ToSettings());
+            },
+            requestExit,
+            cancellationToken));
     }
 
     private static async Task Loop(
@@ -22,6 +70,7 @@ internal static class SilentUpdateRuntime {
         string allowedRoot,
         string processPath,
         Action requestExit,
+        SemaphoreSlim updateGate,
         CancellationToken cancellationToken) {
         Logger logger = LogManager.GetLogger(typeof(SilentUpdateRuntime).FullName!);
         string? applicationDirectory = Path.GetDirectoryName(processPath);
@@ -32,7 +81,6 @@ internal static class SilentUpdateRuntime {
         using GitHubReleaseFeed probe = new(GitHubReleaseFeed.CreateClient(
             timeout: NetworkWaitPolicy.ProbeTimeout,
             githubApi: false));
-        using GitHubReleaseFeed feed = new(GitHubReleaseFeed.CreateClient());
         Architecture architecture = RuntimeInformation.ProcessArchitecture;
 
         while (!cancellationToken.IsCancellationRequested) {
@@ -43,16 +91,25 @@ internal static class SilentUpdateRuntime {
                     NetworkWaitPolicy.OfflineRetry,
                     cancellationToken);
 
-                SilentUpdateOutcome outcome = await RunOnce(
-                    state,
-                    settingsPath,
-                    allowedRoot,
-                    processPath,
-                    applicationDirectory,
-                    feed,
-                    probe,
-                    requestExit,
-                    cancellationToken);
+                await updateGate.WaitAsync(cancellationToken);
+                SilentUpdateOutcome outcome;
+                bool exitRequested = false;
+                try {
+                    outcome = await CheckNow(
+                        state,
+                        state.AutoUpdateEnabled,
+                        settingsPath,
+                        allowedRoot,
+                        processPath,
+                        () => exitRequested = true,
+                        cancellationToken);
+                } finally {
+                    updateGate.Release();
+                }
+
+                if (exitRequested) {
+                    requestExit();
+                }
 
                 logger.Info("Silent update check finished with {outcome}", outcome);
                 if (outcome is SilentUpdateOutcome.Applied or SilentUpdateOutcome.NoUpdate) {
@@ -74,40 +131,6 @@ internal static class SilentUpdateRuntime {
                 await Task.Delay(SilentUpdatePolicy.FailedRetry, cancellationToken);
             }
         }
-    }
-
-    private static Task<SilentUpdateOutcome> RunOnce(
-        AppState state,
-        string settingsPath,
-        string allowedRoot,
-        string processPath,
-        string applicationDirectory,
-        IReleaseFeed feed,
-        IInternetProbe probe,
-        Action requestExit,
-        CancellationToken cancellationToken) {
-        string downloadDirectory = Path.Combine(
-            Path.GetTempPath(),
-            nameof(AuthenticatorChooser),
-            "updates",
-            Guid.NewGuid().ToString("N"));
-        return SilentUpdateCoordinator.RunOnce(new SilentUpdateContext(
-            state,
-            AppVersion.Current,
-            DateTime.UtcNow,
-            Process.GetCurrentProcess().ProcessName,
-            applicationDirectory,
-            downloadDirectory,
-            RuntimeInformation.ProcessArchitecture,
-            probe,
-            feed,
-            new CmdSilentSetupInstaller(),
-            () => {
-                SettingsStore.EnsurePathAllowed(settingsPath, allowedRoot);
-                SettingsStore.Save(settingsPath, state.ToSettings());
-            },
-            requestExit,
-            cancellationToken));
     }
 
     private static TimeSpan DelayAfter(SilentUpdateOutcome outcome) {
