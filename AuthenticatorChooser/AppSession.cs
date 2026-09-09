@@ -141,7 +141,9 @@ public sealed class AppSession: IDisposable {
             };
         }
 
-        if (state.AutostartOnLogon && !autostart.Register(processPath(), null)) {
+        if (state.AutostartOnLogon
+            && AutostartPolicy.CanOwnLogonTask(processPath())
+            && !autostart.Register(processPath(), null)) {
             return new LaunchPreparation {
                 ExitCode = 1,
                 IsError = true,

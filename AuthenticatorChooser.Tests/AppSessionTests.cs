@@ -11,6 +11,7 @@ public sealed class AppSessionTests: IDisposable {
     public AppSessionTests() {
         root = Path.Combine(Path.GetTempPath(), "AuthenticatorChooserSession", Guid.NewGuid().ToString("N"), nameof(AuthenticatorChooser));
         Directory.CreateDirectory(root);
+        File.WriteAllText(Path.Combine(root, "unins000.exe"), "x");
         settingsPath = Path.Combine(root, "settings.json");
     }
 
@@ -114,6 +115,28 @@ public sealed class AppSessionTests: IDisposable {
         result.ExitCode.Should().Be(0);
         result.Message.Should().BeNull();
         autostart.Received(1).Register(Arg.Any<string>(), Arg.Any<string?>());
+        SettingsStore.Load(settingsPath).AutostartOnLogon.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Prepare_PortableCopy_DoesNotRegisterAutostart() {
+        IAutostartService autostart = Substitute.For<IAutostartService>();
+        ISingleInstanceService single = Substitute.For<ISingleInstanceService>();
+        single.TryAcquire().Returns(true);
+        string portableDir = Path.Combine(root, "portable");
+        Directory.CreateDirectory(portableDir);
+        using AppSession session = new(
+            Substitute.For<IUserNotifier>(),
+            autostart,
+            single,
+            Substitute.For<IUiLoop>(),
+            () => settingsPath,
+            () => root,
+            () => Path.Combine(portableDir, "AuthenticatorChooser.exe"),
+            (_, _) => { });
+        LaunchPreparation result = session.Prepare(Startup.ToLaunchRequest(false, false, false, null, (false, null)));
+        result.ExitCode.Should().Be(0);
+        autostart.DidNotReceive().Register(Arg.Any<string>(), Arg.Any<string?>());
         SettingsStore.Load(settingsPath).AutostartOnLogon.Should().BeTrue();
     }
 

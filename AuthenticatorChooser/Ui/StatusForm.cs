@@ -317,6 +317,19 @@ public sealed class StatusForm: Form {
             }
 
             bool want = autostartBox.Checked;
+            if (!AutostartPolicy.CanOwnLogonTask(executablePath)) {
+                MessageBox.Show(
+                    this,
+                    "Only the installed copy can change logon autostart. This is a local or portable build.",
+                    Text,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                syncing = true;
+                autostartBox.Checked = state.AutostartOnLogon;
+                syncing = false;
+                return;
+            }
+
             bool ok = want ? autostart.Register(executablePath, null) : autostart.Unregister();
             if (!ok) {
                 MessageBox.Show(this, "Could not update the logon scheduled task.", Text, MessageBoxButtons.OK, MessageBoxIcon.Error);

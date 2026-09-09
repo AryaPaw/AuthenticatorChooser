@@ -11,6 +11,7 @@ public sealed class SettingsResetTests: IDisposable {
     public SettingsResetTests() {
         root = Path.Combine(Path.GetTempPath(), "AuthenticatorChooserReset", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
+        File.WriteAllText(Path.Combine(root, "unins000.exe"), "x");
         settingsPath = Path.Combine(root, "settings.json");
     }
 

@@ -13,7 +13,7 @@ internal static class SettingsReset {
         SettingsStore.Save(settingsPath, state.ToSettings());
         Logging.initialize(state.FileLogEnabled, state.LogFilename);
         if (state.AutostartOnLogon) {
-            return autostart.Register(executablePath, null);
+            return !AutostartPolicy.CanOwnLogonTask(executablePath) || autostart.Register(executablePath, null);
         }
 
         return autostart.Unregister();
