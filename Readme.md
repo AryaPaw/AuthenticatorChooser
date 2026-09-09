@@ -42,7 +42,7 @@ Try it on [webauthn.io](https://webauthn.io) → **Authenticate**.
 
 ## Updates
 
-Installed from Setup, it checks GitHub for a newer installer when you sign in to Windows and applies it in the background. If the PC is offline, it waits for a connection. Portable copies (no Setup) do not auto-update.
+Installed from Setup, it checks GitHub for a newer installer when you sign in to Windows and applies it in the background. **Check for updates** on the computer tab does the same check even if automatic updates are off. If the PC is offline, it waits for a connection. Portable copies (no Setup) do not auto-update.
 
 Turn this off with **Install updates silently from GitHub** in the status window.
 
