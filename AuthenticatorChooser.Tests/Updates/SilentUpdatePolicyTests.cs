@@ -9,6 +9,7 @@ public sealed class SilentUpdatePolicyTests {
     [InlineData("v0.8.0", "0.8.0")]
     [InlineData("0.7.1", "0.7.1")]
     [InlineData("v1.0", "1.0")]
+    [InlineData("v0.8.4+deadbeef", "0.8.4")]
     public void TryParseTag_AcceptsReleaseTags(string tag, string expected) {
         SilentUpdatePolicy.TryParseTag(tag, out Version? version).Should().BeTrue();
         version.Should().Be(Version.Parse(expected));

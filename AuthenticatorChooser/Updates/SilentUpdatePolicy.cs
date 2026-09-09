@@ -6,7 +6,7 @@ internal static class SilentUpdatePolicy {
 
     public static readonly TimeSpan BusyRetry = TimeSpan.FromMinutes(2);
 
-    public static readonly TimeSpan FailedRetry = TimeSpan.FromHours(6);
+    public static readonly TimeSpan FailedRetry = TimeSpan.FromMinutes(2);
 
     public const long MaxApiBytes = 1_048_576;
 
@@ -18,12 +18,7 @@ internal static class SilentUpdatePolicy {
             return false;
         }
 
-        string trimmed = tag.Trim();
-        if (trimmed.StartsWith('v') || trimmed.StartsWith('V')) {
-            trimmed = trimmed[1..];
-        }
-
-        return Version.TryParse(trimmed, out version);
+        return Version.TryParse(UpdatePolicy.Normalize(tag), out version);
     }
 
     public static bool IsNewer(Version current, Version candidate) => candidate > current;
@@ -50,14 +45,11 @@ internal static class SilentUpdatePolicy {
         File.Exists(Path.Combine(applicationDirectory, "unins000.exe"));
 
     public static bool IsSafeSetupPath(string path, string downloadDirectory) {
-        string fullPath = Path.GetFullPath(path);
-        string fullRoot = Path.GetFullPath(downloadDirectory);
-        bool underRoot = fullPath.StartsWith(fullRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
-        if (!underRoot) {
+        if (!UpdatePolicy.IsInsideRoot(downloadDirectory, path)) {
             return false;
         }
 
-        string name = Path.GetFileName(fullPath);
+        string name = Path.GetFileName(path);
         return string.Equals(name, SetupFileName("win-x64"), StringComparison.OrdinalIgnoreCase)
             || string.Equals(name, SetupFileName("win-arm64"), StringComparison.OrdinalIgnoreCase);
     }

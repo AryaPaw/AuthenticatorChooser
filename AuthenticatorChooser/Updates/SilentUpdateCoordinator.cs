@@ -15,6 +15,7 @@ public enum SilentUpdateOutcome {
 
 public sealed record SilentUpdateContext(
     AppState State,
+    bool AutoUpdateEnabled,
     string CurrentVersion,
     DateTime UtcNow,
     string ProcessName,
@@ -32,7 +33,7 @@ public static class SilentUpdateCoordinator {
 
     public static async Task<SilentUpdateOutcome> RunOnce(SilentUpdateContext context) {
         if (!SilentUpdatePolicy.AllowsBackgroundProcess(context.ProcessName)
-            || !context.State.AutoUpdateEnabled
+            || !context.AutoUpdateEnabled
             || !SilentUpdatePolicy.HasInnoUninstaller(context.ApplicationDirectory)
             || SilentUpdatePolicy.RidFor(context.ProcessArchitecture) is null) {
             return SilentUpdateOutcome.Skipped;
@@ -46,7 +47,7 @@ public static class SilentUpdateCoordinator {
             return SilentUpdateOutcome.Offline;
         }
 
-        if (!Version.TryParse(context.CurrentVersion, out Version? current)) {
+        if (!Version.TryParse(UpdatePolicy.Normalize(context.CurrentVersion), out Version? current)) {
             return SilentUpdateOutcome.Failed;
         }
 
@@ -75,8 +76,9 @@ public static class SilentUpdateCoordinator {
             string.Equals(item.Name, fileName, StringComparison.OrdinalIgnoreCase));
         if (asset is null
             || !SetupIntegrity.TryParseGitHubDigest(asset.Digest, out string expected)
-            || !SafeWeb.TryCreateAllowedUrl(asset.BrowserDownloadUrl, out Uri? downloadUrl)
-            || downloadUrl is null) {
+            || !Uri.TryCreate(asset.BrowserDownloadUrl, UriKind.Absolute, out Uri? downloadUrl)
+            || downloadUrl is null
+            || !UpdatePolicy.IsAllowedAssetUrl(downloadUrl)) {
             return SilentUpdateOutcome.Failed;
         }
 

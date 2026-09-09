@@ -103,6 +103,25 @@ public sealed class GitHubReleaseFeedTests {
     }
 
     [Fact]
+    public async Task Download_FollowsGithubCdnRedirect() {
+        string dest = Path.Combine(Path.GetTempPath(), "AuthenticatorChooserSilentTests", Guid.NewGuid().ToString("N"), "AuthenticatorChooser-Setup-win-x64.exe");
+        Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+        try {
+            using GitHubReleaseFeed feed = new(GitHubReleaseFeed.CreateClient(new CdnRedirectHandler()));
+            bool ok = await feed.Download(
+                new Uri("https://github.com/AryaPaw/AuthenticatorChooser/releases/download/v0.8.4/AuthenticatorChooser-Setup-win-x64.exe"),
+                dest,
+                CancellationToken.None);
+            ok.Should().BeTrue();
+            File.ReadAllBytes(dest).Should().Equal(9, 8, 7);
+        } finally {
+            if (File.Exists(dest)) {
+                File.Delete(dest);
+            }
+        }
+    }
+
+    [Fact]
     public async Task Download_RejectsNonGithubUrl() {
         using GitHubReleaseFeed feed = new(GitHubReleaseFeed.CreateClient(new ScriptedHandler(new HttpResponseMessage(HttpStatusCode.OK) {
             Content = new ByteArrayContent([1])
@@ -159,6 +178,27 @@ public sealed class GitHubReleaseFeedTests {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
             RequestUri = request.RequestUri?.AbsoluteUri;
             return Task.FromResult(response);
+        }
+
+    }
+
+    private sealed class CdnRedirectHandler: HttpMessageHandler {
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
+            string host = request.RequestUri?.Host ?? "";
+            if (string.Equals(host, "github.com", StringComparison.OrdinalIgnoreCase)) {
+                HttpResponseMessage redirect = new(HttpStatusCode.Found);
+                redirect.Headers.Location = new Uri("https://release-assets.githubusercontent.com/github-production-release-asset/setup");
+                return Task.FromResult(redirect);
+            }
+
+            if (string.Equals(host, "release-assets.githubusercontent.com", StringComparison.OrdinalIgnoreCase)) {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) {
+                    Content = new ByteArrayContent([9, 8, 7])
+                });
+            }
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden));
         }
 
     }

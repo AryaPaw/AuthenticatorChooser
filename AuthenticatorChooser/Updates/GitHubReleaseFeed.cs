@@ -24,6 +24,10 @@ public sealed class GitHubReleaseFeed: IReleaseFeed, IInternetProbe, IDisposable
 
     public const string ProbeUrl = "https://github.com/AryaPaw/AuthenticatorChooser";
 
+    public static readonly TimeSpan QueryTimeout = TimeSpan.FromSeconds(20);
+
+    public static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(5);
+
     private static readonly JsonSerializerOptions JsonOptions = new() {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
         PropertyNameCaseInsensitive = true
@@ -36,8 +40,12 @@ public sealed class GitHubReleaseFeed: IReleaseFeed, IInternetProbe, IDisposable
     }
 
     public static HttpClient CreateClient(HttpMessageHandler? handler = null, TimeSpan? timeout = null, bool githubApi = true) {
-        HttpClient client = handler is null ? new HttpClient() : new HttpClient(handler, true);
-        client.Timeout = timeout ?? TimeSpan.FromSeconds(30);
+        HttpMessageHandler inner = handler ?? new SocketsHttpHandler {
+            AllowAutoRedirect = false,
+            UseCookies = false
+        };
+        HttpClient client = new(inner, true);
+        client.Timeout = timeout ?? DownloadTimeout;
         client.DefaultRequestHeaders.UserAgent.ParseAdd($"AuthenticatorChooser/{AppVersion.Current}");
         if (githubApi) {
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
@@ -60,7 +68,9 @@ public sealed class GitHubReleaseFeed: IReleaseFeed, IInternetProbe, IDisposable
                     continue;
                 }
 
-                if (!SafeWeb.TryCreateAllowedUrl(asset.BrowserDownloadUrl, out Uri? uri) || uri is null) {
+                if (!Uri.TryCreate(asset.BrowserDownloadUrl, UriKind.Absolute, out Uri? uri)
+                    || uri is null
+                    || !UpdatePolicy.IsAllowedAssetUrl(uri)) {
                     continue;
                 }
 
@@ -76,16 +86,19 @@ public sealed class GitHubReleaseFeed: IReleaseFeed, IInternetProbe, IDisposable
 
     public async Task<ReleaseQuery> QueryLatest(CancellationToken cancellationToken) {
         try {
-            using HttpResponseMessage response = await httpClient.GetAsync(LatestApiUrl, cancellationToken);
+            using CancellationTokenSource queryTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            queryTimeout.CancelAfter(QueryTimeout);
+            using HttpResponseMessage response = await httpClient.GetAsync(UpdatePolicy.LatestApi, queryTimeout.Token);
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound) {
                 return new ReleaseQuery(true, null);
             }
 
-            if (!response.IsSuccessStatusCode || Exceeds(response.Content, SilentUpdatePolicy.MaxApiBytes)) {
+            int status = (int) response.StatusCode;
+            if (status is 429 or >= 500 || !response.IsSuccessStatusCode || Exceeds(response.Content, SilentUpdatePolicy.MaxApiBytes)) {
                 return new ReleaseQuery(false, null);
             }
 
-            string json = await response.Content.ReadAsStringAsync(cancellationToken);
+            string json = await response.Content.ReadAsStringAsync(queryTimeout.Token);
             if (json.Length > SilentUpdatePolicy.MaxApiBytes || !TryParse(json, out GitHubReleaseSnapshot? snapshot)) {
                 return new ReleaseQuery(false, null);
             }
@@ -93,33 +106,39 @@ public sealed class GitHubReleaseFeed: IReleaseFeed, IInternetProbe, IDisposable
             return new ReleaseQuery(false, snapshot);
         } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
             return new ReleaseQuery(false, null);
+        } catch (HttpRequestException) {
+            return new ReleaseQuery(false, null);
         }
     }
 
     public async Task<bool> Download(Uri url, string destinationPath, CancellationToken cancellationToken) {
-        if (!SafeWeb.TryCreateAllowedUrl(url.AbsoluteUri, out Uri? allowed) || allowed is null) {
+        if (!UpdatePolicy.IsAllowedAssetUrl(url)) {
             return false;
         }
 
         try {
-            using HttpResponseMessage response = await httpClient.GetAsync(allowed, cancellationToken);
-            if (!response.IsSuccessStatusCode) {
-                return false;
-            }
-
-            if (Exceeds(response.Content, SilentUpdatePolicy.MaxSetupBytes)) {
-                return false;
-            }
-
             string? directory = Path.GetDirectoryName(destinationPath);
-            if (string.IsNullOrWhiteSpace(directory)) {
+            if (string.IsNullOrWhiteSpace(directory) || !UpdatePolicy.IsInsideRoot(directory, destinationPath)) {
                 return false;
             }
 
             Directory.CreateDirectory(directory);
+            if (File.Exists(destinationPath)) {
+                File.Delete(destinationPath);
+            }
+
             bool copied = false;
             try {
                 await using FileStream file = new(destinationPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+                using HttpResponseMessage response = await GetFollowingRedirectsAsync(url, cancellationToken);
+                if (!response.IsSuccessStatusCode) {
+                    return false;
+                }
+
+                if (Exceeds(response.Content, SilentUpdatePolicy.MaxSetupBytes)) {
+                    return false;
+                }
+
                 copied = await CopyBounded(response.Content, file, SilentUpdatePolicy.MaxSetupBytes, cancellationToken);
             } finally {
                 if (!copied && File.Exists(destinationPath)) {
@@ -129,6 +148,10 @@ public sealed class GitHubReleaseFeed: IReleaseFeed, IInternetProbe, IDisposable
 
             return copied;
         } catch (IOException) {
+            return false;
+        } catch (HttpRequestException) {
+            return false;
+        } catch (InvalidOperationException) {
             return false;
         } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
             return false;
@@ -153,6 +176,38 @@ public sealed class GitHubReleaseFeed: IReleaseFeed, IInternetProbe, IDisposable
     }
 
     public void Dispose() => httpClient.Dispose();
+
+    private async Task<HttpResponseMessage> GetFollowingRedirectsAsync(Uri url, CancellationToken cancellationToken) {
+        Uri current = url;
+        for (int hop = 0; hop <= 5; hop++) {
+            bool allowed = hop == 0
+                ? UpdatePolicy.IsAllowedAssetUrl(current)
+                : UpdatePolicy.IsAllowedRedirectUrl(current);
+            if (!allowed) {
+                throw new InvalidOperationException("Download URL is not allowed.");
+            }
+
+            HttpResponseMessage response = await httpClient.GetAsync(current, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            int status = (int) response.StatusCode;
+            if (status is not (301 or 302 or 303 or 307 or 308)) {
+                return response;
+            }
+
+            Uri? next = response.Headers.Location;
+            response.Dispose();
+            if (next is null) {
+                throw new InvalidOperationException("Redirect without Location.");
+            }
+
+            if (!next.IsAbsoluteUri) {
+                next = new Uri(current, next);
+            }
+
+            current = next;
+        }
+
+        throw new InvalidOperationException("Too many redirects.");
+    }
 
     private static bool Exceeds(HttpContent content, long maxBytes) =>
         content.Headers.ContentLength is long length && length > maxBytes;

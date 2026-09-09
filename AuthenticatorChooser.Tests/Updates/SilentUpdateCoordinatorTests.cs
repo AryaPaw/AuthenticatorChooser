@@ -39,6 +39,21 @@ public sealed class SilentUpdateCoordinatorTests: IDisposable {
     }
 
     [Fact]
+    public async Task RunOnce_ManualCheckRunsWhenAutoUpdateIsOff() {
+        state.AutoUpdateEnabled = false;
+        DateTime now = new(2026, 8, 29, 18, 0, 0, DateTimeKind.Utc);
+        FakeFeed feed = new() {
+            Latest = new GitHubReleaseSnapshot("v0.7.0", false, ReleaseAssets("0.7.0"))
+        };
+        SilentUpdateContext context = Context("AuthenticatorChooser", feed, new FakeInstaller(), now, "0.7.0") with {
+            AutoUpdateEnabled = true
+        };
+        SilentUpdateOutcome outcome = await SilentUpdateCoordinator.RunOnce(context);
+        outcome.Should().Be(SilentUpdateOutcome.NoUpdate);
+        feed.LatestCalls.Should().Be(1);
+    }
+
+    [Fact]
     public async Task RunOnce_SkipsWhenDisabled() {
         state.AutoUpdateEnabled = false;
         FakeFeed feed = new();
@@ -249,6 +264,7 @@ public sealed class SilentUpdateCoordinatorTests: IDisposable {
         IInternetProbe? probe = null) =>
         new(
             state,
+            state.AutoUpdateEnabled,
             currentVersion,
             now ?? new DateTime(2026, 8, 29, 18, 0, 0, DateTimeKind.Utc),
             processName,
