@@ -39,7 +39,8 @@ PrivilegesRequired=admin
 ArchitecturesAllowed={#InstallArch}
 ArchitecturesInstallIn64BitMode={#InstallArch}
 CloseApplications=no
-RestartApplications=no
+        RestartApplications=no
+RestartIfNeededByRun=no
 MinVersion=10.0.22621
 UsePreviousAppDir=yes
 

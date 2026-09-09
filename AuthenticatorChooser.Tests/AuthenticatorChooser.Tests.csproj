@@ -35,6 +35,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\AuthenticatorChooser\AuthenticatorChooser.csproj" />
+        <None Include="..\installer\AuthenticatorChooser.iss" Link="installer\AuthenticatorChooser.iss" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 
     <ItemGroup>
