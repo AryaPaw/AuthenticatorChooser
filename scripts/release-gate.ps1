@@ -35,10 +35,13 @@ if (-not (Test-Path $publishedExe)) {
 
 Write-Step "Compile Inno Setup"
 $isccCandidates = @(
-    (Join-Path ${env:LOCALAPPDATA} "Programs\Inno Setup 6\ISCC.exe"),
-    (Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"),
-    (Join-Path $env:ProgramFiles "Inno Setup 6\ISCC.exe")
+    (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6\ISCC.exe")
 )
+foreach ($pf in @(${env:ProgramFiles(x86)}, $env:ProgramFiles)) {
+    if (-not [string]::IsNullOrWhiteSpace($pf)) {
+        $isccCandidates += Join-Path $pf "Inno Setup 6\ISCC.exe"
+    }
+}
 $iscc = $isccCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $iscc) {
     Fail "ISCC.exe not found"
