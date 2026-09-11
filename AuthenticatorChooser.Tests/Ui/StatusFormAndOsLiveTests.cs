@@ -11,31 +11,22 @@ public sealed class StatusFormAndOsLiveTests {
 
     [Fact]
     public void StatusForm_CloseHidesInsteadOfExiting() {
-        Exception? failure = null;
-        Thread thread = new(() => {
-            try {
-                AppState state = new();
-                IAutostartService autostart = Substitute.For<IAutostartService>();
-                string root = Path.Combine(Path.GetTempPath(), "AuthenticatorChooserForm", Guid.NewGuid().ToString("N"));
-                Directory.CreateDirectory(root);
-                string settings = Path.Combine(root, "settings.json");
-                using TrayIcon tray = new(state);
-                using StatusForm form = new(state, autostart, Path.Combine(root, "app.exe"), settings, root, tray, () => { });
-                form.Reveal();
-                form.ClientSize.Width.Should().BeGreaterThanOrEqualTo(640);
-                form.Text.Should().Contain("AuthenticatorChooser");
-                form.HideToTrayIfUserClosing(CloseReason.UserClosing).Should().BeTrue();
-                form.Visible.Should().BeFalse();
-                state.TrayHintShown.Should().BeTrue();
-                Directory.Delete(root, true);
-            } catch (Exception e) {
-                failure = e;
-            }
+        StaHarness.Run(() => {
+            AppState state = new();
+            IAutostartService autostart = Substitute.For<IAutostartService>();
+            string root = Path.Combine(Path.GetTempPath(), "AuthenticatorChooserForm", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            string settings = Path.Combine(root, "settings.json");
+            using TrayIcon tray = new(state);
+            using StatusForm form = new(state, autostart, Path.Combine(root, "app.exe"), settings, root, tray, () => { });
+            form.Reveal();
+            form.ClientSize.Width.Should().BeGreaterThanOrEqualTo(640);
+            form.Text.Should().Contain("AuthenticatorChooser");
+            form.HideToTrayIfUserClosing(CloseReason.UserClosing).Should().BeTrue();
+            form.Visible.Should().BeFalse();
+            state.TrayHintShown.Should().BeTrue();
+            Directory.Delete(root, true);
         });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join();
-        failure.Should().BeNull();
     }
 
     [Fact]

@@ -94,22 +94,7 @@ public sealed class PinPriorityUiTests {
         }
     }
 
-    private static void RunSta(Action action) {
-        Exception? error = null;
-        Thread thread = new(() => {
-            try {
-                action();
-            } catch (Exception e) {
-                error = e;
-            }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join();
-        if (error is not null) {
-            throw error;
-        }
-    }
+    private static void RunSta(Action action) => StaHarness.Run(action);
 
     private sealed class StubFido2DeviceCounter: IFido2DeviceCounter {
         public int? Count { get; set; } = 1;

@@ -77,19 +77,43 @@ public sealed class UiAutomationAndDesktopTests: IDisposable {
     }
 
     [Fact]
+    public void StatusForm_PortableAutostartCheckboxIsDisabled() {
+        StaHarness.Run(() => {
+            AppState state = new();
+            IAutostartService autostart = Substitute.For<IAutostartService>();
+            string root = Path.Combine(Path.GetTempPath(), "ac-portable-form-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            string settings = Path.Combine(root, "settings.json");
+            using TrayIcon tray = new(state);
+            using StatusForm form = new(state, autostart, Path.Combine(root, "app.exe"), settings, root, tray, () => { });
+            form.Reveal();
+            Flatten(form).OfType<CheckBox>().Single(c => c.AccessibleName == "autostartOnLogon").Enabled.Should().BeFalse();
+            CheckBox autostartBox = Flatten(form).OfType<CheckBox>().Single(c => c.AccessibleName == "autostartOnLogon");
+            bool before = autostartBox.Checked;
+            autostartBox.Checked = !before;
+            autostartBox.Checked.Should().Be(before);
+            Flatten(form).OfType<ThemedButton>().Single(b => b.AccessibleName == "computerTab").PerformClick();
+            Flatten(form).OfType<Button>().Single(b => b.AccessibleName == "exportLog").PerformClick();
+            Flatten(form).OfType<Button>().Single(b => b.AccessibleName == "resetSettings").PerformClick();
+            Directory.Delete(root, true);
+        });
+    }
+
+    [Fact]
     public void StatusForm_TogglesOptions() {
-        RunSta(() => {
+        StaHarness.Run(() => {
             AppState state = new();
             IAutostartService autostart = Substitute.For<IAutostartService>();
             autostart.Register(Arg.Any<string>(), Arg.Any<string?>()).Returns(true);
             autostart.Unregister().Returns(true);
             string root = Path.Combine(Path.GetTempPath(), "ac-form-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(root);
+            File.WriteAllText(Path.Combine(root, "unins000.exe"), "x");
             string settings = Path.Combine(root, "settings.json");
             using TrayIcon tray = new(state);
             using StatusForm form = new(state, autostart, Path.Combine(root, "app.exe"), settings, root, tray, () => { });
             form.Reveal();
-            foreach (CheckBox box in Flatten(form).OfType<CheckBox>()) {
+            foreach (CheckBox box in Flatten(form).OfType<CheckBox>().Where(box => box.Enabled)) {
                 box.Checked = !box.Checked;
             }
 
@@ -211,22 +235,7 @@ public sealed class UiAutomationAndDesktopTests: IDisposable {
         }
     }
 
-    private static void RunSta(Action action) {
-        Exception? error = null;
-        Thread thread = new(() => {
-            try {
-                action();
-            } catch (Exception e) {
-                error = e;
-            }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join();
-        if (error is not null) {
-            throw error;
-        }
-    }
+    private static void RunSta(Action action) => StaHarness.Run(action);
 
     private sealed class ImmediateReturnLoop: IUiLoop {
 

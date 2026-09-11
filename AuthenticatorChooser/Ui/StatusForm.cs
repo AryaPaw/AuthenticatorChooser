@@ -327,12 +327,13 @@ public sealed class StatusForm: Form {
 
             bool want = autostartBox.Checked;
             if (!AutostartPolicy.CanOwnLogonTask(executablePath)) {
-                MessageBox.Show(
+                StatusDialogs.Show(
                     this,
                     "Only the installed copy can change logon autostart. This is a local or portable build.",
                     Text,
                     MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
+                    MessageBoxIcon.Information,
+                    MessageBoxDefaultButton.Button1);
                 syncing = true;
                 autostartBox.Checked = state.AutostartOnLogon;
                 syncing = false;
@@ -341,7 +342,7 @@ public sealed class StatusForm: Form {
 
             bool ok = want ? autostart.Register(executablePath, null) : autostart.Unregister();
             if (!ok) {
-                MessageBox.Show(this, "Could not update the logon scheduled task.", Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                StatusDialogs.Show(this, "Could not update the logon scheduled task.", Text, MessageBoxButtons.OK, MessageBoxIcon.Error, MessageBoxDefaultButton.Button1);
                 syncing = true;
                 autostartBox.Checked = state.AutostartOnLogon;
                 syncing = false;
@@ -395,7 +396,7 @@ public sealed class StatusForm: Form {
             if (File.Exists(logPath)) {
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(logPath) { UseShellExecute = true });
             } else {
-                MessageBox.Show(this, $"Log file not found yet:\n{logPath}", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                StatusDialogs.Show(this, $"Log file not found yet:\n{logPath}", Text, MessageBoxButtons.OK, MessageBoxIcon.Information, MessageBoxDefaultButton.Button1);
             }
         };
         ThemedButton exportLog = new("Export log", false) { AccessibleName = "exportLog" };
@@ -507,6 +508,7 @@ public sealed class StatusForm: Form {
         statusBadge.ShowRunning(state.Enabled);
         eventValue.Text = StatusPresenter.EventLabel(state.LastEvent, state.LastEventDetail);
         pauseButton.Text = StatusPresenter.PauseActionLabel(state.Enabled);
+        autostartBox.Enabled = AutostartPolicy.CanOwnLogonTask(executablePath);
         autostartBox.Checked = state.AutostartOnLogon;
         logBox.Checked = state.FileLogEnabled;
         autoUpdateBox.Checked = state.AutoUpdateEnabled;
@@ -595,7 +597,7 @@ public sealed class StatusForm: Form {
     private void ExportLog() {
         string logPath = Logging.ResolveLogPath(state.LogFilename, allowedRoot);
         if (!File.Exists(logPath)) {
-            MessageBox.Show(this, $"Log file not found yet:\n{logPath}", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            StatusDialogs.Show(this, $"Log file not found yet:\n{logPath}", Text, MessageBoxButtons.OK, MessageBoxIcon.Information, MessageBoxDefaultButton.Button1);
             return;
         }
 
@@ -603,11 +605,11 @@ public sealed class StatusForm: Form {
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
             $"AuthenticatorChooser-{DateTime.Now:yyyyMMdd-HHmmss}.log");
         File.Copy(logPath, destination, overwrite: true);
-        MessageBox.Show(this, $"Saved:\n{destination}", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+        StatusDialogs.Show(this, $"Saved:\n{destination}", Text, MessageBoxButtons.OK, MessageBoxIcon.Information, MessageBoxDefaultButton.Button1);
     }
 
     private void ResetSettings() {
-        DialogResult answer = MessageBox.Show(
+        DialogResult answer = StatusDialogs.Show(
             this,
             "Reset all options to their defaults? Autostart, PIN mode, priorities, logging, and silent updates will return to factory values.",
             Text,
@@ -620,7 +622,7 @@ public sealed class StatusForm: Form {
 
         pinCache.Clear();
         if (!SettingsReset.TryApply(state, autostart, executablePath, settingsPath, allowedRoot)) {
-            MessageBox.Show(this, "Settings were reset, but the logon scheduled task could not be updated.", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            StatusDialogs.Show(this, "Settings were reset, but the logon scheduled task could not be updated.", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1);
         }
     }
 
