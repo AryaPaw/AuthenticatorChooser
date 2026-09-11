@@ -15,7 +15,7 @@ internal static class ManualUpdateCopy {
             case SilentUpdateOutcome.Failed:
                 return "Could not check or download the update.";
             case SilentUpdateOutcome.Offline:
-                return "No network.";
+                return "Could not reach GitHub.";
             case SilentUpdateOutcome.Skipped:
                 return "Updates apply only to the Setup-installed copy.";
             case SilentUpdateOutcome.Busy:

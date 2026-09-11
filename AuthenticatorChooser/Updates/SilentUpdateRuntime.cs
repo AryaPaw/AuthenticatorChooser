@@ -40,9 +40,6 @@ internal static class SilentUpdateRuntime {
             nameof(AuthenticatorChooser),
             "updates",
             Guid.NewGuid().ToString("N"));
-        using GitHubReleaseFeed probe = new(GitHubReleaseFeed.CreateClient(
-            timeout: NetworkWaitPolicy.ProbeTimeout,
-            githubApi: false));
         using GitHubReleaseFeed feed = new(GitHubReleaseFeed.CreateClient());
         return await SilentUpdateCoordinator.RunOnce(new SilentUpdateContext(
             state,
@@ -53,7 +50,7 @@ internal static class SilentUpdateRuntime {
             applicationDirectory,
             downloadDirectory,
             RuntimeInformation.ProcessArchitecture,
-            probe,
+            feed,
             feed,
             new CmdSilentSetupInstaller(),
             () => {
@@ -78,15 +75,13 @@ internal static class SilentUpdateRuntime {
             return;
         }
 
-        using GitHubReleaseFeed probe = new(GitHubReleaseFeed.CreateClient(
-            timeout: NetworkWaitPolicy.ProbeTimeout,
-            githubApi: false));
+        using GitHubReleaseFeed feed = new(GitHubReleaseFeed.CreateClient());
         Architecture architecture = RuntimeInformation.ProcessArchitecture;
 
         while (!cancellationToken.IsCancellationRequested) {
             try {
                 await NetworkWaitPolicy.WaitUntilOnline(
-                    probe,
+                    feed,
                     Timeout.InfiniteTimeSpan,
                     NetworkWaitPolicy.OfflineRetry,
                     cancellationToken);

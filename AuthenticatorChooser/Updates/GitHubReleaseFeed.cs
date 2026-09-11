@@ -22,8 +22,6 @@ public sealed class GitHubReleaseFeed: IReleaseFeed, IInternetProbe, IDisposable
 
     public const string LatestApiUrl = "https://api.github.com/repos/AryaPaw/AuthenticatorChooser/releases/latest";
 
-    public const string ProbeUrl = "https://github.com/AryaPaw/AuthenticatorChooser";
-
     public static readonly TimeSpan QueryTimeout = TimeSpan.FromSeconds(20);
 
     public static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(5);
@@ -160,15 +158,17 @@ public sealed class GitHubReleaseFeed: IReleaseFeed, IInternetProbe, IDisposable
 
     public async Task<bool> IsReachable(CancellationToken cancellationToken) {
         try {
+            using CancellationTokenSource probeTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            probeTimeout.CancelAfter(QueryTimeout);
             using HttpResponseMessage response = await httpClient.GetAsync(
-                ProbeUrl,
+                UpdatePolicy.LatestApi,
                 HttpCompletionOption.ResponseHeadersRead,
-                cancellationToken);
+                probeTimeout.Token);
             _ = response.StatusCode;
             return true;
-        } catch (HttpRequestException) {
+        } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
             return false;
-        } catch (TaskCanceledException) {
+        } catch (HttpRequestException) {
             return false;
         } catch (IOException) {
             return false;

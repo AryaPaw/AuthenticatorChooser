@@ -140,9 +140,15 @@ public sealed class GitHubReleaseFeedTests {
     [Fact]
     public async Task IsReachable_TrueWhenHttpResponds() {
         CapturingHandler handler = new(new HttpResponseMessage(HttpStatusCode.NotFound));
-        using GitHubReleaseFeed feed = new(GitHubReleaseFeed.CreateClient(handler, githubApi: false));
+        using GitHubReleaseFeed feed = new(GitHubReleaseFeed.CreateClient(handler));
         (await feed.IsReachable(CancellationToken.None)).Should().BeTrue();
-        handler.RequestUri.Should().Be(GitHubReleaseFeed.ProbeUrl);
+        handler.RequestUri.Should().Be(UpdatePolicy.LatestApi.AbsoluteUri);
+    }
+
+    [Fact]
+    public async Task IsReachable_FalseWhenRequestTimesOut() {
+        using GitHubReleaseFeed feed = new(GitHubReleaseFeed.CreateClient(new TimeoutHandler()));
+        (await feed.IsReachable(CancellationToken.None)).Should().BeFalse();
     }
 
     [Fact]

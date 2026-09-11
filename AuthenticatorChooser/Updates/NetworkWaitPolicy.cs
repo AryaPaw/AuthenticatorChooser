@@ -10,8 +10,6 @@ public static class NetworkWaitPolicy {
 
     public static readonly TimeSpan OfflineRetry = TimeSpan.FromSeconds(15);
 
-    public static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(5);
-
     public static async Task<bool> WaitUntilOnline(
         IInternetProbe probe,
         TimeSpan budget,
